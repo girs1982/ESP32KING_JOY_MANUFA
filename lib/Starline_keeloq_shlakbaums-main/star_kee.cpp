@@ -615,7 +615,7 @@ Serial.print("btn");Serial.println(keeloq_codeM[0]>>4,HEX);
 Serial.print("SN:");Serial.println(keeloq_codeM[3],HEX);
 for (int i = 0; i < sizeof(Manafacture) / sizeof(Manafacture[0]); i++) {
     // Дешифруем данные с помощью текущего ключа
-    uint64_t encryptionKey = 0x1234567890ABCDEF; // Задаем ключ шифрования
+    uint64_t encryptionKey = 0x000000000000000; // Задаем ключ шифрования
     uint64_t decryptedKey = simpleEncryptDecrypt(Manafacture[i].key, encryptionKey);//  Manafacture[i].key;//Manafacture[i].key; 
     uint64_t decryptedData = subghz_protocol_keeloq_common_decrypt(hop, decryptedKey);
 
