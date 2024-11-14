@@ -434,7 +434,7 @@ hop = (static_cast<uint32_t>(inverted_star[3]) << 24) |
 
 for (int i = 0; i < sizeof(Manafacture) / sizeof(Manafacture[0]); i++) {
     // Дешифруем данные с помощью текущего ключа
-    uint64_t encryptionKey = 0x1234567890ABCDEF; // Задаем ключ шифрования
+    uint64_t encryptionKey = 00000000000000000; // Задаем ключ шифрования
     uint64_t decryptedKey =simpleEncryptDecrypt(Manafacture[i].key, encryptionKey);//  Manafacture[i].key;//Manafacture[i].key; 
     
     uint64_t decryptedData = subghz_protocol_keeloq_common_decrypt(hop, decryptedKey);
