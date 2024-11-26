@@ -33,6 +33,7 @@ void starline_get();
 void startgrabber();
 void init_kepsta();
 void starline_send(byte* starline_code);
+void starline_sendMan(byte* starline_code);
 void keelog_send(byte* keelog_code);
 static void ganstaDelaymic(unsigned long ms);
 void glushilko_gansta(int tim);
@@ -66,8 +67,8 @@ void process_came();
 void set_bit(uint8_t *data, uint8_t n);
 String stringWithPrefix(String line, int len, char prefix);
 void reverseBitsInBytes(byte* input, byte* output, int length);
-void saveUniqueCode(uint8_t* newCode, size_t codeLength);
-void getSavedCodes(String& jsonResponse,uint8_t codeLength);
+void saveUniqueCode(const char* packageName, uint8_t* newCode, size_t codeLength);
+void getSavedCodes(const char* packageName, String& jsonResponse, uint8_t codeLength);
 void grabshlack_mymod();
 
 #include <EEPROM.h>

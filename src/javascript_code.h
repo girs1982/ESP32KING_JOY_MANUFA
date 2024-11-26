@@ -168,43 +168,98 @@ function process() {
 
             // Загружаем коды только при переходе на вкладку 3, если коды еще не загружены
             if (tabName === 'tab3' && !isCodesFetched) {
-                fetchCodes();  // Вызываем функцию загрузки кодов
+                  fetchCodes('/getSavedCodes', 'staCodeTable', 'staCodeList');
+                 fetchCodes('/getSavedCodesKee', 'keeCodeTable', 'keeCodeList');
                // isCodesFetched = true; // Устанавливаем флаг, чтобы не загружать коды снова
             }
         }
 
-function fetchCodes() {
-    fetch('/getSavedCodes')
-        .then(response => response.json())  // Парсим JSON
+function fetchCodes(url, tableId, listId) {
+    fetch(url)
+        .then(response => response.json()) // Парсим JSON
         .then(data => {
-            const codeList = document.getElementById('codeList');
-            codeList.innerHTML = '';  // Очищаем текущий список
+            const codeList = document.getElementById(listId);
+            codeList.innerHTML = ''; // Очищаем текущий список
 
             // Добавляем данные в таблицу
             data.forEach((code, index) => {
                 const row = document.createElement('tr');
-                row.dataset.index = index;  // Устанавливаем индекс строки
+                row.dataset.index = index; // Устанавливаем индекс строки
 
                 const cellNumber = document.createElement('td');
-                cellNumber.textContent = index + 1;  // Номер строки
+                cellNumber.textContent = index + 1; // Номер строки
 
                 const cellCode = document.createElement('td');
-                cellCode.textContent = code.map(byte => byte.toUpperCase()).join(', ');  // Код в верхнем регистре
+                cellCode.textContent = code.map(byte => byte.toUpperCase()).join(', '); // Код в верхнем регистре
 
-                // Обработчик для выделения строки
+                // Создаем колонку для кнопки
+                const cellAction = document.createElement('td');
+                const sendButton = document.createElement('button');
+                sendButton.textContent = 'Send';
+                sendButton.style.display = 'none'; // Сначала скрываем кнопку
+
+                // При выделении строки показываем кнопку
                 row.addEventListener('click', () => {
-                    row.classList.toggle('selected');
+                    // Убираем выделение с других строк
+                    document.querySelectorAll(`#${listId} .selected`).forEach(selectedRow => {
+                        selectedRow.classList.remove('selected');
+                    });
+
+                    // Выделяем текущую строку
+                    row.classList.add('selected');
+
+                    // Показываем кнопку "Send"
+                    sendButton.style.display = 'inline-block';
+
+                    // При нажатии на кнопку отправляем GET запрос
+                    sendButton.onclick = () => {
+                        const selectedCode = code.map(byte => byte.toUpperCase()).join(', ');
+
+                        // Получаем название таблицы, из которой был выбран код
+                        const tableName = row.closest('table').id;
+
+                        // Создаем URL для GET запроса
+                        const requestUrl = `/send_codeoutTable?table=${tableName}&code=${encodeURIComponent(selectedCode)}`;
+
+                        // Отправляем GET запрос
+                        fetch(requestUrl)
+                            .then(response => response.text())  // Ожидаем текстовый ответ от сервера
+                            .then(data => {
+                                console.log('Ответ от сервера:', data);
+
+                                // Меняем цвет кнопки после успешной отправки
+                                sendButton.style.backgroundColor = 'green';  // Успешно отправлено
+                                sendButton.style.color = 'white';  // Меняем цвет текста на белый
+                                sendButton.textContent = 'Sent';  // Изменяем текст на 'Sent'
+
+                                // Добавляем alert об успешной отправке
+                              //  alert(`Отправлен код: ${selectedCode} из таблицы: ${tableName}`);
+                            })
+                            .catch(error => {
+                                console.error('Ошибка при отправке запроса:', error);
+                                alert('Ошибка при отправке кода');
+                            });
+                    };
                 });
+
+                // Добавляем кнопку в ячейку действия
+                cellAction.appendChild(sendButton);
 
                 // Добавляем ячейки в строку
                 row.appendChild(cellNumber);
                 row.appendChild(cellCode);
+                row.appendChild(cellAction);
+
                 // Добавляем строку в таблицу
                 codeList.appendChild(row);
             });
         })
-        .catch(error => console.error('Ошибка при получении кодов:', error));
+        .catch(error => {
+            console.error(`Ошибка при получении кодов с ${url}:`, error);
+            alert('Ошибка при загрузке данных с сервера');
+        });
 }
+
 
 function PutXML() {}
 function writetofile() {}

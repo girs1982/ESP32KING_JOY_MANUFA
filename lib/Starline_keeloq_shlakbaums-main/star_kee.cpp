@@ -120,6 +120,7 @@ uint64_t simpleEncryptDecrypt(uint64_t data, uint64_t key) {
 }
 
 // Массив с зашифрованными ключами
+// Массив с зашифрованными ключами
 DeviceData Manafacture[] = {
     {0x0000000000000000, "Tomohawk"},
     {0x0000000000000000, "Tomohawk9010"},
@@ -169,6 +170,7 @@ DeviceData ManafactureNS[] = {
     {0x0000000000000000, "Door1"},
     {0x0000000000000000, "Door2"}
 };
+
 const int deviceCount = sizeof(Manafacture) / sizeof(Manafacture[0]);
 /**
  * Простая функция дешифровки для протокола Keeloq
@@ -253,31 +255,50 @@ void reverseBitsInBytes(byte* input, byte* output, int length) {
 }
 
 // Функция для сохранения кода, если он уникален
-void saveUniqueCode(uint8_t* newCode, size_t codeLength) {
-    prefs.begin("sta", false);  // Начинаем работу с Preferences, открываем пространство "sta"
-    
-    // Получаем текущий индекс записи, по умолчанию 0
+void saveUniqueCode(const char* packageName, uint8_t* newCode, size_t codeLength) {
+    prefs.begin(packageName, false);  // Начинаем работу с Preferences, открываем указанное пространство
+
+    // Получаем текущий индекс записи для данного пакета, по умолчанию 0
     int currentIndex = prefs.getInt("index", 0);
 
     // Проверяем, есть ли уже этот код в памяти
     for (int i = 0; i < 30; ++i) {
-        String key = "sta" + String(i);
+        String key = String(i);  // Индексный ключ, уникальный для каждого кода в пакете
         uint8_t existingCode[codeLength];
         if (prefs.getBytes(key.c_str(), existingCode, codeLength) == codeLength) {
             if (memcmp(newCode, existingCode, codeLength) == 0) {
-                Serial.println("Код уже сохранен.");
+                Serial.println("Код уже сохранен в текущем пакете.");
                 prefs.end();
                 return;
             }
         }
     }
 
+    // Проверка на переполнение
+    if (currentIndex >= 30) {
+        Serial.println("Достигнут предел записей. Код не сохранён.");
+        prefs.end();
+        return;
+    }
+
     // Генерируем ключ для текущего индекса
-    String key = "sta" + String(currentIndex);
+    String key = String(currentIndex);
+
+    // Очистка старых данных (на случай записи кода меньшей длины)
+    uint8_t emptySlot[codeLength] = {0};
+    prefs.putBytes(key.c_str(), emptySlot, codeLength);
 
     // Сохраняем новый код в текущий слот
-    prefs.putBytes(key.c_str(), newCode, codeLength);
+    size_t bytesWritten = prefs.putBytes(key.c_str(), newCode, codeLength);
+    if (bytesWritten != codeLength) {
+        Serial.println("Ошибка записи кода!");
+        prefs.end();
+        return;
+    }
+
     Serial.print("Код сохранен в ");
+    Serial.print(packageName);
+    Serial.print(" под ключом ");
     Serial.println(key);
 
     // Обновляем индекс для следующей записи
@@ -286,6 +307,7 @@ void saveUniqueCode(uint8_t* newCode, size_t codeLength) {
 
     prefs.end();
 }
+
 
 
 void init_kepsta(){
@@ -434,7 +456,7 @@ hop = (static_cast<uint32_t>(inverted_star[3]) << 24) |
 
 for (int i = 0; i < sizeof(Manafacture) / sizeof(Manafacture[0]); i++) {
     // Дешифруем данные с помощью текущего ключа
-    uint64_t encryptionKey = 0x1234567890ABCDEF; // Задаем ключ шифрования
+    uint64_t encryptionKey = 0x000000000000000; // Задаем ключ шифрования
     uint64_t decryptedKey =simpleEncryptDecrypt(Manafacture[i].key, encryptionKey);//  Manafacture[i].key;//Manafacture[i].key; 
     
     uint64_t decryptedData = subghz_protocol_keeloq_common_decrypt(hop, decryptedKey);
@@ -509,7 +531,7 @@ codan=codan+String(starline_code[7],HEX);
 codan=codan+"-btn-";
 codan=codan+String(starline_code[8],HEX);
 if(manafak){codan=codan+String(":M:")+foundProtocol;manafak=false;}
-saveUniqueCode(starline_code, sizeof(starline_code));
+saveUniqueCode("sta0",starline_code, sizeof(starline_code));
 Serial.println(codan);
 disponto=true;
 }
@@ -615,7 +637,7 @@ Serial.print("btn");Serial.println(keeloq_codeM[0]>>4,HEX);
 Serial.print("SN:");Serial.println(keeloq_codeM[3],HEX);
 for (int i = 0; i < sizeof(Manafacture) / sizeof(Manafacture[0]); i++) {
     // Дешифруем данные с помощью текущего ключа
-    uint64_t encryptionKey = 0x1234567890ABCDEF; // Задаем ключ шифрования
+    uint64_t encryptionKey = 0x0000000000000; // Задаем ключ шифрования
     uint64_t decryptedKey = simpleEncryptDecrypt(Manafacture[i].key, encryptionKey);//  Manafacture[i].key;//Manafacture[i].key; 
     uint64_t decryptedData = subghz_protocol_keeloq_common_decrypt(hop, decryptedKey);
 
@@ -680,11 +702,14 @@ codan=codan+String(inverted_kee[8],HEX);
 if(manafak){codan=codan+String(":M:")+foundProtocol;manafak=false;}
 Serial.println(codan);
  if(k<2){
-prefs.begin("sta0");
-prefs.putBytes("kee0",inverted_kee,9);
-prefs.end();
+// prefs.begin("kee0");
+// prefs.putBytes("kee0",inverted_kee,9);
+// prefs.end();
 //k++;
  }
+// Определите длину явно
+size_t keelog_code_length = sizeof(keelog_code);  // Вернёт 9, так как массив известен на этапе компиляции
+saveUniqueCode("kee0", inverted_kee, keelog_code_length);
 
 disponto=true;
 }
@@ -793,6 +818,7 @@ void starline_send(byte* starline_code){
   
 }
 
+
 bool manufan(){return manafak;}
 void starline_sendMan(byte* starline_code){
  
@@ -892,7 +918,7 @@ void SendCame4(long Code) {
 
 
 void posilkeeloq1(){
-prefs.begin("sta0", false);
+prefs.begin("kee0", false);
 prefs.getBytes("kee0",keelog_codePAK1,9);
 prefs.end();
 for(int i=0;i<30;i++){keelog_send(keelog_codePAK1);}
@@ -919,7 +945,7 @@ sending=sending+String( keelog_codePAK1[8],HEX);
 //Serial.println("srabotalo-keeloq");
 }
 void posilkeeloq2(){
-prefs.begin("sta0", false);
+prefs.begin("kee0", false);
 //EEPROM.begin(3512);
 // keelog_codePAK1[0]=EEPROM.read(0);
 //keelog_codePAK1[0]=prefs.getUChar("kee0", 0);
@@ -1527,29 +1553,36 @@ String stringWithPrefix(String line, int len, char prefix)
 }
 
 // Функция для получения сохранённых кодов
-void getSavedCodes(String& jsonResponse, uint8_t codeLength) {
-    prefs.begin("sta", false);  // Открываем пространство памяти "sta"
-    
+void getSavedCodes(const char* packageName, String& jsonResponse, uint8_t expectedCodeLength) {
+    prefs.begin(packageName, false);  // Открываем пространство памяти с указанным именем пакета
+    Serial.printf("Чтение данных из пакета: %s\n", packageName);
+
     jsonResponse = "[";  // Начинаем JSON-массив
 
     for (int i = 0; i < 30; ++i) {
-        String key = "sta" + String(i);
-        uint8_t code[codeLength];
-        if (prefs.getBytes(key.c_str(), code, codeLength) == codeLength) {
-            if (i > 0) {
+        String key = String(i);  // Используем ключ на основе индекса
+        uint8_t code[expectedCodeLength];  // Буфер для чтения данных
+        size_t bytesRead = prefs.getBytes(key.c_str(), code, expectedCodeLength);  // Читаем данные
+        
+        Serial.printf("Ключ: %s, Прочитано байт: %d\n", key.c_str(), bytesRead);
+
+        if (bytesRead > 0) {  // Если данные существуют
+            if (jsonResponse.length() > 1) {
                 jsonResponse += ",";  // Добавляем запятую между элементами массива
             }
-            jsonResponse += "[";  // Начинаем новый код в массиве
-            for (size_t j = 0; j < codeLength; ++j) {
-                jsonResponse += "\"" + String(code[j], HEX) + "\"";  // Преобразуем каждый байт в строку HEX
-                if (j < codeLength - 1) {
-                    jsonResponse += ",";  // Разделитель байтов в коде
+            jsonResponse += "[";  // Начинаем новый массив
+            for (size_t j = 0; j < bytesRead; ++j) {
+                jsonResponse += "\"" + String(code[j], HEX) + "\"";  // Конвертируем байт в HEX-строку
+                if (j < bytesRead - 1) {
+                    jsonResponse += ",";
                 }
             }
-            jsonResponse += "]";
+            jsonResponse += "]";  // Закрываем массив
         }
     }
 
-    jsonResponse += "]";  // Закрываем массив
+    jsonResponse += "]";  // Закрываем JSON-массив
     prefs.end();  // Закрываем пространство памяти
+    Serial.println("Чтение завершено");
+    Serial.println(jsonResponse);  // Печатаем результат
 }

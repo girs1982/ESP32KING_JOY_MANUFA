@@ -53,6 +53,15 @@ const char* webSiteContent = R"(
     div#tabsbuts {
            margin-left: 50%;
                   }
+ /* Контейнер для таблиц */
+.table-container {
+    display: flex;
+    gap: 20px; /* Расстояние между таблицами */
+}
+/* Обертка для каждой таблицы */
+.table-wrapper {
+    width: 48%; /* Каждая таблица займет примерно половину доступного пространства */
+}
 </style>
 <BODY onload='process()'>
 <!-- Вкладки для навигации -->
@@ -153,21 +162,42 @@ CodeGrabing<br> <A ID='Batareya'></A><br>
    
   </div>
 
-  <div id="tab3" class="tabcontent">
-<h2>Сохранённые коды</h2>
-<table id="codeTable">
-    <thead>
-        <tr>
-            <th>№</th>
-            <th>Код</th>
-        </tr>
-    </thead>
-    <tbody id="codeList">
-        <!-- Строки с кодами будут добавляться здесь -->
-    </tbody>
-</table>
-       
-  </div>
+<div id="tab3" class="tabcontent">
+<h2>Сохранённые коды (STA)</h2>
+<div class="table-container">
+    <div class="table-wrapper">
+        <table id="staCodeTable">
+            <thead>
+                <tr>
+                    <th>№</th>
+                    <th>Код</th>
+                    <th>Действие</th>
+                </tr>
+            </thead>
+            <tbody id="staCodeList">
+                <!-- Строки с кодами будут добавляться здесь -->
+            </tbody>
+        </table>
+    </div>
+
+    <div class="table-wrapper">
+        <h2>Сохранённые коды (KEE)</h2>
+        <table id="keeCodeTable">
+            <thead>
+                <tr>
+                    <th>№</th>
+                    <th>Код</th>
+                    <th>Действие</th>
+                </tr>
+            </thead>
+            <tbody id="keeCodeList">
+                <!-- Строки с кодами будут добавляться здесь -->
+            </tbody>
+        </table>
+    </div>
+</div>
+</div>
+
 </BODY>
 </HTML>
 )";

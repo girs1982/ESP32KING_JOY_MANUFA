@@ -139,9 +139,9 @@ void codanz(){
 //codan;  
 }
 // Функция для отправки сохранённых кодов на сервер
-void sendSavedCodes() {
+void GetSavedCodes(const char* packageName) {
     String jsonResponse;
-    getSavedCodes(jsonResponse,9);  // Получаем коды в формате JSON
+    getSavedCodes(packageName,jsonResponse,9);  // Получаем коды в формате JSON
     // Отправляем полученный JSON на сервер
     server.send(200, "application/json", jsonResponse);  // Отправляем JSON с кодами
 }
@@ -484,7 +484,46 @@ stopsigi = 1;
 });
 ////////////////////////////////////////////////////////////////////
 server.on("/getSavedCodes", []() {
-    sendSavedCodes();  // Отправка кодов на сервер
+    GetSavedCodes("sta0");  // Отправка кодов на сервер
+});
+server.on("/getSavedCodesKee", []() {
+    GetSavedCodes("kee0");  // Отправка кодов на сервер
+});
+server.on("/send_codeoutTable", []() {
+  // Получаем параметры из GET запроса
+  String tableName = server.arg("table"); // Параметр table
+  String selectedCode = server.arg("code"); // Параметр code
+  // Выводим полученные параметры в консоль
+  Serial.println("Получены данные:");
+  Serial.print("Таблица: ");
+  Serial.println(tableName);
+  Serial.print("Код: ");
+  Serial.println(selectedCode);
+  // Преобразуем строку с кодом в массив байтов
+  int codeLength = 0;
+  byte* codeArray = new byte[selectedCode.length() / 3];  // Разделяем по 3 символа (например, E6, 37)  
+  // Разделяем строку и конвертируем в байты
+  int i = 0;
+  for (int j = 0; j < selectedCode.length(); j += 3) {
+    String byteString = selectedCode.substring(j, j + 2); // Берем по два символа (например, E6, 37)
+    codeArray[i] = (byte)strtol(byteString.c_str(), NULL, 16); // Преобразуем в байт
+    i++;
+  }
+  // В зависимости от таблицы вызываем нужную функцию для отправки кода
+  if (tableName == "staCodeTable") {
+    Serial.println("Отправка кода через starline_send");
+    ELECHOUSE_cc1101.SetTx(freqncy);
+    starline_sendMan(codeArray);  // Отправляем через starline_send
+  } else if (tableName == "keeCodeTable") {
+    ELECHOUSE_cc1101.SetTx(freqncy);
+    Serial.println("Отправка кода через keelog_send");
+    keelog_sendPAK2(codeArray);  // Отправляем через keelog_send
+  }
+  // Освобождаем память для массива байтов
+  delete[] codeArray;
+  // Отправляем ответ пользователю
+  ELECHOUSE_cc1101.SetRx(freqncy); 
+  server.send(200, "text/html", "Данные успешно получены");
 });
 server.on("/GETS", [](){
   ELECHOUSE_cc1101.SetTx(freqncy);
