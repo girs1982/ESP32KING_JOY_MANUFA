@@ -440,6 +440,7 @@ server.send(200, "text/html", webSite);
 Serial.println("Manafacturing");
 ELECHOUSE_cc1101.SetTx(freqncy);
 Serial.println("Send Star Mana");
+
 posilstarlinemana();
  // ELECHOUSE_cc1101.Init();            // must be set to initialize the cc1101!
 //ELECHOUSE_cc1101.setRxBW(812.50);  // Set the Receive Bandwidth in kHz. Value from 58.03 to 812.50. Default is 812.50 kHz.

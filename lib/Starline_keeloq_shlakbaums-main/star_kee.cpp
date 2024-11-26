@@ -106,20 +106,13 @@ struct DeviceData {
     const char* name;  // Название устройства
 };
 
-//Инициализация массива с данными устройств
-// DeviceData Manafacture[] = {
-//     {0xAABBCCDDEEFFAABB, "Test1"},
-//     {0xAABBCCDDEEFFAABB, "Test2"},
-//     {0x5504045708301203, "Tomohawk"},
-//     {0x6408076407018725, "Tomohawk9010"}
-// };
+
 
 // Функция для шифрования и дешифрования с использованием XOR
 uint64_t simpleEncryptDecrypt(uint64_t data, uint64_t key) {
     return data ^ key; // Применяем XOR для шифрования и дешифрования
 }
 
-// Массив с зашифрованными ключами
 // Массив с зашифрованными ключами
 DeviceData Manafacture[] = {
     {0x0000000000000000, "Tomohawk"},
@@ -456,7 +449,7 @@ hop = (static_cast<uint32_t>(inverted_star[3]) << 24) |
 
 for (int i = 0; i < sizeof(Manafacture) / sizeof(Manafacture[0]); i++) {
     // Дешифруем данные с помощью текущего ключа
-    uint64_t encryptionKey = 0x000000000000000; // Задаем ключ шифрования
+    uint64_t encryptionKey = 0x0000000000; // Задаем ключ шифрования
     uint64_t decryptedKey =simpleEncryptDecrypt(Manafacture[i].key, encryptionKey);//  Manafacture[i].key;//Manafacture[i].key; 
     
     uint64_t decryptedData = subghz_protocol_keeloq_common_decrypt(hop, decryptedKey);
@@ -637,7 +630,7 @@ Serial.print("btn");Serial.println(keeloq_codeM[0]>>4,HEX);
 Serial.print("SN:");Serial.println(keeloq_codeM[3],HEX);
 for (int i = 0; i < sizeof(Manafacture) / sizeof(Manafacture[0]); i++) {
     // Дешифруем данные с помощью текущего ключа
-    uint64_t encryptionKey = 0x0000000000000; // Задаем ключ шифрования
+    uint64_t encryptionKey = 0x000000000000; // Задаем ключ шифрования
     uint64_t decryptedKey = simpleEncryptDecrypt(Manafacture[i].key, encryptionKey);//  Manafacture[i].key;//Manafacture[i].key; 
     uint64_t decryptedData = subghz_protocol_keeloq_common_decrypt(hop, decryptedKey);
 
