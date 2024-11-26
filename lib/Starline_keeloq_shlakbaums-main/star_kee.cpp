@@ -120,52 +120,55 @@ uint64_t simpleEncryptDecrypt(uint64_t data, uint64_t key) {
 }
 
 // Массив с зашифрованными ключами
+// Массив с зашифрованными ключами
 DeviceData Manafacture[] = {
-    {0x4730522F989BDFEC, "Tomohawk"},     // Зашифрованный 0x5504045708301203
-    {0x763C511C97AA4ACA, "Tomohawk9010"}, // Зашифрованный 0x6408076407018725
-    {0xFDDF8CDCD4C598A0, "Tomohawk9020"}, // Зашифрованный 0xEFCDAB2A3B4D5E6F
-    {0xEC9BDFE89EC89D98, "StarlineB6"},   // Зашифрованный 0xFEDCBA2AB3D4E5F6
-    {0xC8689AF493DA9AC4, "StarlineA2"},   // Зашифрованный 0xDA78FEF89BF8F79B
-    {0x112A757B0D68E35F, "StarlineA8"},   // Зашифрованный 0x0312300857040455
-    {0x77241D6DF8C7DB82, "Lacosta"},      // Зашифрованный 0x656E79644E47414D
-    {0x6A2FDC9148A21C25, "Aligofrend"},   // Зашифрованный 0x78556C62B2D4F3EE
-    {0xFDCF2F5C86D2A2FE, "Centurion"},    // Зашифрованный 0xEFCDAB8967452301
-    {0x062E25A893F3F06C, "Obama"},        // Зашифрованный 0x140A61820A853041
-    {0x6AFD5FF41A6B1DBF, "Sherif"},       // Зашифрованный 0x789418A994253312
-    {0xEB9B36002B63F031, "Obama2"},       // Зашифрованный 0xF9846267B75C3654
-    {0x34B3547F167F88AB, "Starline25"},   // Зашифрованный 0x2687010764070864
-    {0x9B95E5AFF788CA1B, "Starline89"},   // Зашифрованный 0x89336337B72386F4
-    {0x7A57AD2CACC7FB65, "Tomohawk68"},   // Зашифрованный 0x6813FB547CC34289
-    {0x03BA63C606108C83, "Starline12"},   // Зашифрованный 0x1299334B2639CE6C
-    {0x65751D84FEC82C8D, "Starline74"},   // Зашифрованный 0x74914BFC701C6622
-    {0xCFF86BCDC61ECA68, "Doorhan"},      // Зашифрованный 0xDDAC325756D56687
-    {0x3106C2CCAA08E02B, "DoorhanProdirkovsky"},      // Зашифрованный 0x2312948435A45584
-    {0x5134D792025D605B, "APS"}           // Зашифрованный 0x4130850A82610A14
+    {0x0000000000000000, "Tomohawk"},
+    {0x0000000000000000, "Tomohawk9010"},
+    {0x0000000000000000, "Tomohawk9020"},
+    {0x0000000000000000, "StarlineB6"},
+    {0x0000000000000000, "StarlineA2"},
+    {0x0000000000000000, "StarlineA8"},
+    {0x0000000000000000, "Lacosta"},
+    {0x0000000000000000, "Aligofrend"},
+    {0x0000000000000000, "Centurion"},
+    {0x0000000000000000, "Obama"},
+    {0x0000000000000000, "Sherif"},
+    {0x0000000000000000, "Obama2"},
+    {0x0000000000000000, "Starline25"},
+    {0x0000000000000000, "Starline89"},
+    {0x0000000000000000, "Tomohawk68"},
+    {0x0000000000000000, "Starline12"},
+    {0x0000000000000000, "Starline74"},
+    {0x0000000000000000, "APS"},
+    {0x0000000000000000, "DoorHanchik"},
+    {0x0000000000000000, "DoorHanchik1"},
+    {0x0000000000000000, "Door1"},
+    {0x0000000000000000, "Door2"}
 };
-// Массив данных устройств без шифрования
+
 DeviceData ManafactureNS[] = {
-    {0x5504045708301203, "Tomohawk"},
-    {0x6408076407018725, "Tomohawk9010"},
-    {0xEFCDAB2A3B4D5E6F, "Tomohawk9020"},
-    {0xFEDCBA2AB3D4E5F6, "StarlineB6"},
-    {0xDA78FEF89BF8F79B, "StarlineA2"},
-    {0x0312300857040455, "StarlineA8"},
-    {0x656E79644E47414D, "Lacosta"},
-    {0x78556C62B2D4F3EE, "Aligofrend"},
-    {0xEFCDAB8967452301, "Centurion"},
-    {0x140A61820A853041, "Obama"},
-    {0x789418A994253312, "Sherif"},
-    {0xF9846267B75C3654, "Obama2"},
-    {0x2687010764070864, "Starline25"},
-    {0x89336337B72386F4, "Starline89"},
-    {0x6813FB547CC34289, "Tomohawk68"},
-    {0x1299334B2639CE6C, "Starline12"},
-    {0x74914BFC701C6622, "Starline74"},
-    {0x4130850A82610A14, "APS"},
-    {0xDDAC325756D56687, "DoorHanchik"},
-    {0x8766D5565732ACDD, "DoorHanchik1"},
-    {0x2312948435A45584, "Door1"},
-    {0x8455A43584941223, "Door2"}
+    {0x0000000000000000, "Tomohawk"},
+    {0x0000000000000000, "Tomohawk9010"},
+    {0x0000000000000000, "Tomohawk9020"},
+    {0x0000000000000000, "StarlineB6"},
+    {0x0000000000000000, "StarlineA2"},
+    {0x0000000000000000, "StarlineA8"},
+    {0x0000000000000000, "Lacosta"},
+    {0x0000000000000000, "Aligofrend"},
+    {0x0000000000000000, "Centurion"},
+    {0x0000000000000000, "Obama"},
+    {0x0000000000000000, "Sherif"},
+    {0x0000000000000000, "Obama2"},
+    {0x0000000000000000, "Starline25"},
+    {0x0000000000000000, "Starline89"},
+    {0x0000000000000000, "Tomohawk68"},
+    {0x0000000000000000, "Starline12"},
+    {0x0000000000000000, "Starline74"},
+    {0x0000000000000000, "APS"},
+    {0x0000000000000000, "DoorHanchik"},
+    {0x0000000000000000, "DoorHanchik1"},
+    {0x0000000000000000, "Door1"},
+    {0x0000000000000000, "Door2"}
 };
 
 const int deviceCount = sizeof(Manafacture) / sizeof(Manafacture[0]);
@@ -453,7 +456,7 @@ hop = (static_cast<uint32_t>(inverted_star[3]) << 24) |
 
 for (int i = 0; i < sizeof(Manafacture) / sizeof(Manafacture[0]); i++) {
     // Дешифруем данные с помощью текущего ключа
-    uint64_t encryptionKey = 0x1234567890ABCDEF; // Задаем ключ шифрования
+    uint64_t encryptionKey = 0x000000000000000; // Задаем ключ шифрования
     uint64_t decryptedKey =simpleEncryptDecrypt(Manafacture[i].key, encryptionKey);//  Manafacture[i].key;//Manafacture[i].key; 
     
     uint64_t decryptedData = subghz_protocol_keeloq_common_decrypt(hop, decryptedKey);
@@ -634,7 +637,7 @@ Serial.print("btn");Serial.println(keeloq_codeM[0]>>4,HEX);
 Serial.print("SN:");Serial.println(keeloq_codeM[3],HEX);
 for (int i = 0; i < sizeof(Manafacture) / sizeof(Manafacture[0]); i++) {
     // Дешифруем данные с помощью текущего ключа
-    uint64_t encryptionKey = 0x1234567890ABCDEF; // Задаем ключ шифрования
+    uint64_t encryptionKey = 0x0000000000000; // Задаем ключ шифрования
     uint64_t decryptedKey = simpleEncryptDecrypt(Manafacture[i].key, encryptionKey);//  Manafacture[i].key;//Manafacture[i].key; 
     uint64_t decryptedData = subghz_protocol_keeloq_common_decrypt(hop, decryptedKey);
 
