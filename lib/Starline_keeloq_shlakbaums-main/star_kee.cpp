@@ -11,6 +11,7 @@ int ing = 0;
 int starlineCounter = 0;
 int starlinePreambula = 0;
 bool manafak=false;
+char totable;
 uint32_t hop = 0;
 uint32_t hop_to_sender = 0;
 uint64_t CrazyMonkey=0;
@@ -104,9 +105,16 @@ struct
 struct DeviceData {
     uint64_t key;   // 64-битный ключ производителя
     const char* name;  // Название устройства
+    int method;    
 };
 
-
+//Инициализация массива с данными устройств
+// DeviceData Manafacture[] = {
+//     {0xAABBCCDDEEFFAABB, "Test1"},
+//     {0xAABBCCDDEEFFAABB, "Test2"},
+//     {0x5504045708301203, "Tomohawk"},
+//     {0x6408076407018725, "Tomohawk9010"}
+// };
 
 // Функция для шифрования и дешифрования с использованием XOR
 uint64_t simpleEncryptDecrypt(uint64_t data, uint64_t key) {
@@ -114,57 +122,91 @@ uint64_t simpleEncryptDecrypt(uint64_t data, uint64_t key) {
 }
 
 // Массив с зашифрованными ключами
-DeviceData Manafacture[] = {
-    {0x0000000000000000, "Tomohawk"},
-    {0x0000000000000000, "Tomohawk9010"},
-    {0x0000000000000000, "Tomohawk9020"},
-    {0x0000000000000000, "StarlineB6"},
-    {0x0000000000000000, "StarlineA2"},
-    {0x0000000000000000, "StarlineA8"},
-    {0x0000000000000000, "Lacosta"},
-    {0x0000000000000000, "Aligofrend"},
-    {0x0000000000000000, "Centurion"},
-    {0x0000000000000000, "Obama"},
-    {0x0000000000000000, "Sherif"},
-    {0x0000000000000000, "Obama2"},
-    {0x0000000000000000, "Starline25"},
-    {0x0000000000000000, "Starline89"},
-    {0x0000000000000000, "Tomohawk68"},
-    {0x0000000000000000, "Starline12"},
-    {0x0000000000000000, "Starline74"},
-    {0x0000000000000000, "APS"},
-    {0x0000000000000000, "DoorHanchik"},
-    {0x0000000000000000, "DoorHanchik1"},
-    {0x0000000000000000, "Door1"},
-    {0x0000000000000000, "Door2"}
-};
 
+// Массив данных устройств без шифрования
 DeviceData ManafactureNS[] = {
-    {0x0000000000000000, "Tomohawk"},
-    {0x0000000000000000, "Tomohawk9010"},
-    {0x0000000000000000, "Tomohawk9020"},
-    {0x0000000000000000, "StarlineB6"},
-    {0x0000000000000000, "StarlineA2"},
-    {0x0000000000000000, "StarlineA8"},
-    {0x0000000000000000, "Lacosta"},
-    {0x0000000000000000, "Aligofrend"},
-    {0x0000000000000000, "Centurion"},
-    {0x0000000000000000, "Obama"},
-    {0x0000000000000000, "Sherif"},
-    {0x0000000000000000, "Obama2"},
-    {0x0000000000000000, "Starline25"},
-    {0x0000000000000000, "Starline89"},
-    {0x0000000000000000, "Tomohawk68"},
-    {0x0000000000000000, "Starline12"},
-    {0x0000000000000000, "Starline74"},
-    {0x0000000000000000, "APS"},
-    {0x0000000000000000, "DoorHanchik"},
-    {0x0000000000000000, "DoorHanchik1"},
-    {0x0000000000000000, "Door1"},
-    {0x0000000000000000, "Door2"}
+   {0x0000000000000000, "Tomohawk", 1},
+    {0x0000000000000000, "Tomohawk9010", 1},
+    {0x0000000000000000, "Tomohawk9020", 1},
+    {0x0000000000000000, "StarlineB6", 1},
+    {0x0000000000000000, "StarlineA2", 1},
+    {0x0000000000000000, "StarlineA8", 1},
+    {0x0000000000000000, "Lacosta", 1},
+    {0x0000000000000000, "Aligofrend", 1},
+    {0x0000000000000000, "Centurion", 1},
+    {0x0000000000000000, "Obama", 1},
+    {0x0000000000000000, "Sherif", 1},
+    {0x0000000000000000, "Obama2", 1},
+    {0x0000000000000000, "Starline25", 1},
+    {0x0000000000000000, "Starline89", 1},
+    {0x0000000000000000, "Tomohawk68", 1},
+    {0x0000000000000000, "Starline12", 1},
+    {0x0000000000000000, "Starline74", 1},
+    {0x0000000000000000, "APS", 1},
+    {0x0000000000000000, "DoorHanchik", 1},
+    {0x0000000000000000, "DoorHanchik1", 1},
+    {0x0000000000000000, "Door1", 1},
+    {0x0000000000000000, "Door2", 1},
+    {0x0000000000000000, "DoorHan", 1},
+    {0x0000000000000000, "Alligator", 1},
+    {0x0000000000000000, "Stilmatic", 2},
+    {0x0000000000000000, "Mongoose", 2},
+    {0x0000000000000000, "SL_A6-A9/Tomahawk_9010", 1},
+    {0x0000000000000000, "Pantera", 1},
+    {0x0000000000000000, "SL_A2-A4", 1},
+    {0x0000000000000000, "Cenmax_St-5", 1},
+    {0x0000000000000000, "SL_B6,B9_dop", 1},
+    {0x0000000000000000, "Harpoon", 1},
+    {0x0000000000000000, "Tomohawk_TZ-9030", 1},
+    {0x0000000000000000, "Tomohawk_Z,X_3-5", 1},
+    {0x0000000000000000, "Cenmax_St-7", 1},
+    {0x0000000000000000, "Sheriff", 1},
+    {0x0000000000000000, "Pantera_CLK", 1},
+    {0x0000000000000000, "Cenmax", 1},
+    {0x0000000000000000, "Alligator_S-275", 1},
+    {0x0000000000000000, "Guard_RF-311A", 2},
+    {0x0000000000000000, "Partisan_RX", 1},
+    {0x0000000000000000, "APS-1100_APS-2550", 1},
+    {0x0000000000000000, "Pantera_XS/Jaguar", 1},
+    {0x0000000000000000, "NICE_Smilo", 1},
+    {0x0000000000000000, "NICE_MHOUSE", 1},
+    {0x0000000000000000, "Dea_Mio", 1},
+    {0x0000000000000000, "Genius_Bravo", 2},
+    {0x0000000000000000, "FAAC_RC,XT", 2},
+    {0x0000000000000000, "FAAC_SLH", 5},
+    {0x0000000000000000, "BFT", 3},
+    {0x0000000000000000, "Came_Space", 1},
+    {0x0000000000000000, "DTM_Neo", 1},
+    {0x0000000000000000, "GSN", 2},
+    {0x0000000000000000, "Beninca", 4},
+    {0x0000000000000000, "Elmes_Poland", 2},
+    {0x0000000000000000, "IronLogic", 1},
+    {0x0000000000000000, "Comunello", 2},
+    {0x0000000000000000, "Sommer(fsk476)", 2},
+    {0x0000000000000000, "Normstahl", 1},
+    {0x0000000000000000, "KEY", 1},
+    {0x0000000000000000, "JCM_Tech", 1},
+    {0x0000000000000000, "Novoferm", 1},
+    {0x0000000000000000, "EcoStar", 2},
+    {0x0000000000000000, "Gibidi", 1},
+    {0x0000000000000000, "Aprimatic", 1},
+    {0x0000000000000000, "Kingates_Stylo4k", 1},
+    {0x0000000000000000, "Centurion", 2},
+    {0x0000000000000000, "Monarch", 2},
+    {0x0000000000000000, "KGB/Subaru", 6},
+    {0x0000000000000000, "Magic_1", 7},
+    {0x0000000000000000, "Magic_2", 7},
+    {0x0000000000000000, "Magic_3", 8},
+    {0x0000000000000000, "Magic_4", 8},
+    {0x0000000000000000, "Teco", 0},
+    {0x0000000000000000, "Mutanco_Mutancode", 0},
+    {0x0000000000000000, "Leopard", 0},
+    {0x0000000000000000, "Faraon", 0},
+    {0x0000000000000000, "Reff", 0},
+    {0x0000000000000000, "ZX-730-750-1055", 0}
 };
 
-const int deviceCount = sizeof(Manafacture) / sizeof(Manafacture[0]);
+const int deviceCount = sizeof(ManafactureNS) / sizeof(ManafactureNS[0]);
 /**
  * Простая функция дешифровки для протокола Keeloq
  * @param data - зашифрованные данные
@@ -246,11 +288,10 @@ void reverseBitsInBytes(byte* input, byte* output, int length) {
     }
 
 }
-
 // Функция для сохранения кода, если он уникален
-void saveUniqueCode(const char* packageName, uint8_t* newCode, size_t codeLength) {
+void saveUniqueCode(const char* packageName, uint8_t* newCode, size_t codeLength, const String& manufacturerName) {
+ // prefs.clear();
     prefs.begin(packageName, false);  // Начинаем работу с Preferences, открываем указанное пространство
-
     // Получаем текущий индекс записи для данного пакета, по умолчанию 0
     int currentIndex = prefs.getInt("index", 0);
 
@@ -261,17 +302,26 @@ void saveUniqueCode(const char* packageName, uint8_t* newCode, size_t codeLength
         if (prefs.getBytes(key.c_str(), existingCode, codeLength) == codeLength) {
             if (memcmp(newCode, existingCode, codeLength) == 0) {
                 Serial.println("Код уже сохранен в текущем пакете.");
+
+                // Если код уже существует, добавляем информацию о производителе в дополнительную таблицу
+                String manufacturerKey = String(i) + "_manufacturer";  // Ключ для таблицы с производителем
+                prefs.putString(manufacturerKey.c_str(), manufacturerName);  // Записываем имя производителя
+
+                // Печатаем информацию о производителе для отслеживания
+                Serial.print("Производитель для этого кода: ");
+                Serial.println(manufacturerName);
+                
                 prefs.end();
                 return;
             }
         }
     }
 
-    // Проверка на переполнение
+    // Если индекс достиг 30, перезаписываем первую запись (индекс 0)
     if (currentIndex >= 30) {
-        Serial.println("Достигнут предел записей. Код не сохранён.");
-        prefs.end();
-        return;
+        Serial.println("Достигнут предел записей. Перезаписываем первую запись.");
+
+        currentIndex = 0;  // Возвращаем индекс к нулю для перезаписи первой записи
     }
 
     // Генерируем ключ для текущего индекса
@@ -294,14 +344,18 @@ void saveUniqueCode(const char* packageName, uint8_t* newCode, size_t codeLength
     Serial.print(" под ключом ");
     Serial.println(key);
 
+    // Записываем информацию о производителе в дополнительную таблицу
+    String manufacturerKey = String(currentIndex) + "_manufacturer";  // Ключ для таблицы с производителем
+    prefs.putString(manufacturerKey.c_str(), manufacturerName);  // Записываем имя производителя
+    Serial.print("Производитель для этого кода: ");
+    Serial.println(manufacturerName);
+
     // Обновляем индекс для следующей записи
     currentIndex = (currentIndex + 1) % 30;  // Кольцевой переход после 30
     prefs.putInt("index", currentIndex);
 
     prefs.end();
 }
-
-
 
 void init_kepsta(){
 pinMode(TX,OUTPUT);
@@ -447,10 +501,10 @@ hop = (static_cast<uint32_t>(inverted_star[3]) << 24) |
       (static_cast<uint32_t>(inverted_star[5]) << 8) | 
       (static_cast<uint32_t>(inverted_star[6]));
 
-for (int i = 0; i < sizeof(Manafacture) / sizeof(Manafacture[0]); i++) {
+for (int i = 0; i < sizeof(ManafactureNS) / sizeof(ManafactureNS[0]); i++) {
     // Дешифруем данные с помощью текущего ключа
-    uint64_t encryptionKey = 0x0000000000; // Задаем ключ шифрования
-    uint64_t decryptedKey =simpleEncryptDecrypt(Manafacture[i].key, encryptionKey);//  Manafacture[i].key;//Manafacture[i].key; 
+    uint64_t encryptionKey = 0x1234567890ABCDEF; // Задаем ключ шифрования
+    uint64_t decryptedKey =ManafactureNS[i].key;//simpleEncryptDecrypt(Manafacture[i].key, encryptionKey);//  Manafacture[i].key;//Manafacture[i].key; 
     
     uint64_t decryptedData = subghz_protocol_keeloq_common_decrypt(hop, decryptedKey);
 
@@ -468,9 +522,9 @@ for (int i = 0; i < sizeof(Manafacture) / sizeof(Manafacture[0]); i++) {
         Serial.println("Manafactured!!!");
         Serial.print("Count (cntm): 0x");
         Serial.println(cntm, HEX);
-        foundProtocol=String(Manafacture[i].name);
+        foundProtocol=String(ManafactureNS[i].name);
         // Получаем hop_to_sender
-        hop_to_sender = subghz_protocol_keeloq_common_encrypt(decryptedData, Manafacture[i].key);
+        hop_to_sender = subghz_protocol_keeloq_common_encrypt(decryptedData, ManafactureNS[i].key);
         Serial.print("hop_to_sender: 0x");
         Serial.println(hop_to_sender, HEX);
 
@@ -492,6 +546,7 @@ for (int i = 0; i < sizeof(Manafacture) / sizeof(Manafacture[0]); i++) {
     prefs.end(); // Закрываем пространство имен
 
         manafak = true; // Устанавливаем флаг успешного выполнения
+        saveUniqueCode("sta0",starline_code, sizeof(starline_code),ManafactureNS[i].name);        
         break; // Выходим из цикла, если нашли совпадение
     }
 }
@@ -524,7 +579,7 @@ codan=codan+String(starline_code[7],HEX);
 codan=codan+"-btn-";
 codan=codan+String(starline_code[8],HEX);
 if(manafak){codan=codan+String(":M:")+foundProtocol;manafak=false;}
-saveUniqueCode("sta0",starline_code, sizeof(starline_code));
+else{saveUniqueCode("sta0",starline_code, sizeof(starline_code),"unknown");}
 Serial.println(codan);
 disponto=true;
 }
@@ -626,30 +681,33 @@ memcpy(keeloq_codeM, keelog_code, sizeof(keelog_code));
 uint32_t hop = (keeloq_codeM[4] << 24) | (keeloq_codeM[5] << 16) | (keeloq_codeM[6] << 8) | keeloq_codeM[7];
 Serial.println();
 Serial.print("HOP:");Serial.println(hop,HEX);
-Serial.print("btn");Serial.println(keeloq_codeM[0]>>4,HEX);
+Serial.print("btn:");Serial.println(keeloq_codeM[0]>>4,HEX);
 Serial.print("SN:");Serial.println(keeloq_codeM[3],HEX);
-for (int i = 0; i < sizeof(Manafacture) / sizeof(Manafacture[0]); i++) {
+for (int i = 0; i < sizeof(ManafactureNS) / sizeof(ManafactureNS[0]); i++) {
     // Дешифруем данные с помощью текущего ключа
-    uint64_t encryptionKey = 0x000000000000; // Задаем ключ шифрования
-    uint64_t decryptedKey = simpleEncryptDecrypt(Manafacture[i].key, encryptionKey);//  Manafacture[i].key;//Manafacture[i].key; 
+    uint64_t encryptionKey = 0x1234567890ABCDEF; // Задаем ключ шифрования
+    uint64_t decryptedKey =  ManafactureNS[i].key;//Manafacture[i].key;  simpleEncryptDecrypt(Manafacture[i].key, encryptionKey);// 
     uint64_t decryptedData = subghz_protocol_keeloq_common_decrypt(hop, decryptedKey);
 
 Serial.print("DECRYPTED:");Serial.println(decryptedData,HEX);
     // Извлекаем старшие 8 бит (btnm)
-    uint8_t btnm = (decryptedData >> 24) & 0xFF;
+    uint8_t btnm = (decryptedData >> 28) & 0xFF;
     // Извлекаем следующие 8 бит (fixm)
     uint8_t fixm = (decryptedData >> 16) & 0xFF;
     // Извлекаем младшие 16 бит (cntm)
     uint16_t cntm = decryptedData & 0xFFFF;
-
+Serial.print("btnCr:");Serial.println(btnm);
+Serial.print("SNCr:");Serial.println(fixm,HEX);
+Serial.print("Name:");Serial.println(ManafactureNS[i].name);
     // Проверяем, совпадают ли btnm и fixm с соответствующими значениями из keloq
     if (btnm == keeloq_codeM[0]>>4&& fixm == keeloq_codeM[3]) {
         Serial.println("Manafactured!!!");
         Serial.print("Count (cntm): 0x");
         Serial.println(cntm, HEX);
-        foundProtocol=String(Manafacture[i].name);
+        foundProtocol=String(ManafactureNS[i].name);
+       
         // Получаем hop_to_sender
-        hop_to_sender = subghz_protocol_keeloq_common_encrypt(decryptedData, Manafacture[i].key);
+        hop_to_sender = subghz_protocol_keeloq_common_encrypt(decryptedData, ManafactureNS[i].key);
         Serial.print("hop_to_sender: 0x");
         Serial.println(hop_to_sender, HEX);
 
@@ -671,6 +729,9 @@ Serial.print("DECRYPTED:");Serial.println(decryptedData,HEX);
     prefs.end(); // Закрываем пространство имен
 
         manafak = true; // Устанавливаем флаг успешного выполнения
+        // Определите длину явно
+if(manafak){size_t keelog_code_length = sizeof(keelog_code);  // Вернёт 9, так как массив известен на этапе компиляции
+saveUniqueCode("kee0", inverted_kee, 9,ManafactureNS[i].name);}
         break; // Выходим из цикла, если нашли совпадение
     }
 }
@@ -693,6 +754,9 @@ codan=codan+String(inverted_kee[7],HEX);
 codan=codan+"-btn-";
 codan=codan+String(inverted_kee[8],HEX);
 if(manafak){codan=codan+String(":M:")+foundProtocol;manafak=false;}
+else{// Определите длину явно
+size_t keelog_code_length = sizeof(keelog_code);  // Вернёт 9, так как массив известен на этапе компиляции
+saveUniqueCode("kee0", inverted_kee, keelog_code_length,"unknown");}
 Serial.println(codan);
  if(k<2){
 // prefs.begin("kee0");
@@ -700,9 +764,7 @@ Serial.println(codan);
 // prefs.end();
 //k++;
  }
-// Определите длину явно
-size_t keelog_code_length = sizeof(keelog_code);  // Вернёт 9, так как массив известен на этапе компиляции
-saveUniqueCode("kee0", inverted_kee, keelog_code_length);
+
 
 disponto=true;
 }
@@ -1077,6 +1139,65 @@ delay(10);
 digitalWrite(TX, LOW); 
  
   starline_state = 0;
+// for(int i = 0; i<9; i++){
+ //   starline_code[i]=0;
+//  }
+ 
+///  Serial.println("srabotalo");
+}
+
+
+void posilkeloqmanaOpen(){ 
+if(decryptedData==0){
+prefs.begin("decryptedData");
+decryptedData=prefs.getUInt("decryptedData", 0); 
+prefs.end();
+}
+
+if(CrazyMonkey==0){
+     prefs.begin("keeMonkey", false); // Открываем пространство имен
+    // Получение значения
+    uint64_t savedKey = prefs.getULong64("monky", 0); // Получаем значение, по умолчанию 0
+    prefs.end(); // Закрываем пространство имен
+}
+//hop_to_sender== (hop_to_sender & 0xFF00FFFF) | (0x42000000);
+ prefs.begin("kee0M", false);
+ prefs.getBytes("kee0M",keelog_codePAK1,9);
+ prefs.end();
+for(int i=0;i<7;i++){
+ cntm++;
+ if(cntm>255){cntm=0;}
+// Обновляем `decryptedData` с новым значением `cntm`
+decryptedData = (decryptedData & 0xFFFF0000) | cntm;
+//decryptedData = (decryptedData & 0x00FFFFFF) | (0x42000000);
+decryptedData = (decryptedData & 0x00FFFFFF) | (buttonopen << 28);
+//decryptedData = (decryptedData & 0xFF00FFFF) | (0x42000000);
+Serial.println(decryptedData,HEX);
+Serial.println(cntm,HEX);  
+hop_to_sender=subghz_protocol_keeloq_common_encrypt(decryptedData,CrazyMonkey);
+Serial.print("hopsender:");
+Serial.println(hop_to_sender,HEX);
+// Разворачиваем `hop_to_sender` побайтово и сохраняем в `starline_codePAK1`
+keelog_codePAK1[0] = (hop_to_sender >> 0) & 0xFF;   // Младший байт (0xF2)
+keelog_codePAK1[1] = (hop_to_sender >> 8) & 0xFF;   // Следующий байт (0x3D)
+keelog_codePAK1[2] = (hop_to_sender >> 16) & 0xFF;  // Следующий байт (0x4E)
+keelog_codePAK1[3] = (hop_to_sender >> 24) & 0xFF;  // Старший байт (0x49)
+keelog_codePAK1[7] = buttonopen;
+sending="code star_line:"+String(   keelog_codePAK1[0],HEX);
+sending=sending+String(  keelog_codePAK1[1],HEX);
+sending=sending+String(   keelog_codePAK1[2],HEX);
+sending=sending+String(  keelog_codePAK1[3],HEX);
+sending=sending+String(  keelog_codePAK1[4],HEX);
+sending=sending+String(   keelog_codePAK1[5],HEX);
+sending=sending+String(  keelog_codePAK1[6],HEX);
+sending=sending+String(   keelog_codePAK1[7],HEX);
+sending=sending+String(  keelog_codePAK1[8],HEX);
+keelog_send(keelog_codePAK1);}
+disponto2=true;
+digitalWrite(TX, HIGH);
+delay(10);
+digitalWrite(TX, LOW);  
+starline_state = 0;
 // for(int i = 0; i<9; i++){
  //   starline_code[i]=0;
 //  }
@@ -1545,7 +1666,7 @@ String stringWithPrefix(String line, int len, char prefix)
     return addon + line;
 }
 
-// Функция для получения сохранённых кодов
+// Функция для получения сохранённых кодов с добавлением имени производителя
 void getSavedCodes(const char* packageName, String& jsonResponse, uint8_t expectedCodeLength) {
     prefs.begin(packageName, false);  // Открываем пространство памяти с указанным именем пакета
     Serial.printf("Чтение данных из пакета: %s\n", packageName);
@@ -1563,14 +1684,29 @@ void getSavedCodes(const char* packageName, String& jsonResponse, uint8_t expect
             if (jsonResponse.length() > 1) {
                 jsonResponse += ",";  // Добавляем запятую между элементами массива
             }
-            jsonResponse += "[";  // Начинаем новый массив
+
+            // Начинаем объект для текущего кода
+            jsonResponse += "{";
+
+            // Добавляем массив с кодом
+            jsonResponse += "\"code\":[";
             for (size_t j = 0; j < bytesRead; ++j) {
                 jsonResponse += "\"" + String(code[j], HEX) + "\"";  // Конвертируем байт в HEX-строку
                 if (j < bytesRead - 1) {
                     jsonResponse += ",";
                 }
             }
-            jsonResponse += "]";  // Закрываем массив
+            jsonResponse += "]";  // Закрываем массив с кодом
+
+            // Получаем имя производителя
+            String manufacturerKey = String(i) + "_manufacturer";  // Ключ для таблицы с производителем
+            String manufacturerName = prefs.getString(manufacturerKey.c_str(), "Неизвестно");  // Если нет, то по умолчанию "Неизвестно"
+            
+            // Добавляем информацию о производителе
+            jsonResponse += ",\"manufacturer\":\"" + manufacturerName + "\"";
+
+            // Закрываем объект текущего кода
+            jsonResponse += "}"; 
         }
     }
 
