@@ -636,7 +636,7 @@ for (int i = 0; i < sizeof(Manafacture) / sizeof(Manafacture[0]); i++) {
 
 Serial.print("DECRYPTED:");Serial.println(decryptedData,HEX);
     // Извлекаем старшие 8 бит (btnm)
-    uint8_t btnm = (decryptedData >> 24) & 0xFF;
+    uint8_t btnm = (decryptedData >> 28) & 0xFF;
     // Извлекаем следующие 8 бит (fixm)
     uint8_t fixm = (decryptedData >> 16) & 0xFF;
     // Извлекаем младшие 16 бит (cntm)
