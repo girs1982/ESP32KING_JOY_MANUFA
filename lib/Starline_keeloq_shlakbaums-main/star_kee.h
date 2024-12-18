@@ -34,6 +34,7 @@ void startgrabber();
 void init_kepsta();
 void starline_send(byte* starline_code);
 void starline_sendMan(byte* starline_code);
+void posilkeloqmanaOpen();
 void keelog_send(byte* keelog_code);
 static void ganstaDelaymic(unsigned long ms);
 void glushilko_gansta(int tim);

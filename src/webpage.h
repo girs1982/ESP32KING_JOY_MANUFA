@@ -171,7 +171,7 @@ CodeGrabing<br> <A ID='Batareya'></A><br>
                 <tr>
                     <th>№</th>
                     <th>Код</th>
-                    <th>Действие</th>
+                    <th>Манафактура</th>
                 </tr>
             </thead>
             <tbody id="staCodeList">
@@ -187,7 +187,7 @@ CodeGrabing<br> <A ID='Batareya'></A><br>
                 <tr>
                     <th>№</th>
                     <th>Код</th>
-                    <th>Действие</th>
+                    <th>Манафактура</th>
                 </tr>
             </thead>
             <tbody id="keeCodeList">

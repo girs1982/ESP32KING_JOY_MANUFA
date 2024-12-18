@@ -190,7 +190,10 @@ function fetchCodes(url, tableId, listId) {
                 cellNumber.textContent = index + 1; // Номер строки
 
                 const cellCode = document.createElement('td');
-                cellCode.textContent = code.map(byte => byte.toUpperCase()).join(', '); // Код в верхнем регистре
+                cellCode.textContent = code.code.map(byte => byte.toUpperCase()).join(', '); // Код в верхнем регистре
+
+                const cellManufacturer = document.createElement('td');
+                cellManufacturer.textContent = code.manufacturer || "Unknown"; // Производитель, если есть
 
                 // Создаем колонку для кнопки
                 const cellAction = document.createElement('td');
@@ -198,7 +201,13 @@ function fetchCodes(url, tableId, listId) {
                 sendButton.textContent = 'Send';
                 sendButton.style.display = 'none'; // Сначала скрываем кнопку
 
-                // При выделении строки показываем кнопку
+                const specialButton = document.createElement('button');
+                specialButton.textContent = 'Special Action';
+                specialButton.style.display = 'none'; // Сначала скрываем кнопку
+                specialButton.style.backgroundColor = 'red';
+                specialButton.style.color = 'white';
+
+                // При выделении строки показываем кнопки
                 row.addEventListener('click', () => {
                     // Убираем выделение с других строк
                     document.querySelectorAll(`#${listId} .selected`).forEach(selectedRow => {
@@ -211,9 +220,16 @@ function fetchCodes(url, tableId, listId) {
                     // Показываем кнопку "Send"
                     sendButton.style.display = 'inline-block';
 
+                    // Проверяем, если производитель не "Unknown", показываем красную кнопку
+                    if (code.manufacturer && code.manufacturer.toLowerCase() !== "unknown") {
+                        specialButton.style.display = 'inline-block';
+                    } else {
+                        specialButton.style.display = 'none';
+                    }
+
                     // При нажатии на кнопку отправляем GET запрос
                     sendButton.onclick = () => {
-                        const selectedCode = code.map(byte => byte.toUpperCase()).join(', ');
+                        const selectedCode = code.code.map(byte => byte.toUpperCase()).join(', ');
 
                         // Получаем название таблицы, из которой был выбран код
                         const tableName = row.closest('table').id;
@@ -240,14 +256,46 @@ function fetchCodes(url, tableId, listId) {
                                 alert('Ошибка при отправке кода');
                             });
                     };
+
+                    // При нажатии на специальную кнопку отправляем GET запрос для производителя
+                    specialButton.onclick = () => {
+                        const selectedCode = code.code.map(byte => byte.toUpperCase()).join(', ');
+
+                        // Получаем название таблицы, из которой был выбран код
+                        const tableName = row.closest('table').id;
+
+                        // Создаем URL для GET запроса
+                        const requestUrl = `/send_specialCodeoutTable?table=${tableName}&code=${encodeURIComponent(selectedCode)}&manufacturer=${encodeURIComponent(code.manufacturer)}`;
+
+                        // Отправляем GET запрос для специального действия
+                        fetch(requestUrl)
+                            .then(response => response.text())  // Ожидаем текстовый ответ от сервера
+                            .then(data => {
+                                console.log('Ответ от сервера:', data);
+
+                                // Меняем цвет кнопки после успешной отправки
+                                specialButton.style.backgroundColor = 'green';  // Успешно отправлено
+                                specialButton.style.color = 'white';  // Меняем цвет текста на белый
+                                specialButton.textContent = 'Sent';  // Изменяем текст на 'Sent'
+
+                                // Добавляем alert об успешной отправке
+                              //  alert(`Отправлен код с производителя: ${code.manufacturer} из таблицы: ${tableName}`);
+                            })
+                            .catch(error => {
+                                console.error('Ошибка при отправке запроса:', error);
+                                alert('Ошибка при отправке кода');
+                            });
+                    };
                 });
 
                 // Добавляем кнопку в ячейку действия
                 cellAction.appendChild(sendButton);
+                cellAction.appendChild(specialButton);  // Добавляем специальную кнопку
 
                 // Добавляем ячейки в строку
                 row.appendChild(cellNumber);
                 row.appendChild(cellCode);
+                row.appendChild(cellManufacturer);  // Добавляем колонку для производителя
                 row.appendChild(cellAction);
 
                 // Добавляем строку в таблицу
@@ -259,7 +307,6 @@ function fetchCodes(url, tableId, listId) {
             alert('Ошибка при загрузке данных с сервера');
         });
 }
-
 
 function PutXML() {}
 function writetofile() {}
