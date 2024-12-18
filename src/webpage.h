@@ -5,6 +5,7 @@
 // Определяем строковую переменную с HTML-кодом
 const char* webSiteContent = R"(
 <!DOCTYPE HTML>
+<meta charset=utf-8>
 <META name='viewport' content='width=device-width, initial-scale=1', charset="utf-8">
 <link rel='shortcut icon' type='image/x-icon' href='/favicon'>
 <style>
@@ -178,6 +179,7 @@ CodeGrabing<br> <A ID='Batareya'></A><br>
                 <!-- Строки с кодами будут добавляться здесь -->
             </tbody>
         </table>
+       <button onclick="clearTable('staCodeTable');">Clear</button>
     </div>
 
     <div class="table-wrapper">
@@ -194,6 +196,7 @@ CodeGrabing<br> <A ID='Batareya'></A><br>
                 <!-- Строки с кодами будут добавляться здесь -->
             </tbody>
         </table>
+          <button onclick="clearTable('keeCodeTable');">Clear</button>
     </div>
 </div>
 </div>

@@ -7,8 +7,14 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
-#include <Preferences.h>
+#include <ArduinoJson.h>
+#include <SPIFFS.h>
+#include <FS.h>  // Для работы с SPIFFS
+#include <stdint.h> // Для uint8_t и uint32_t
+#include <stddef.h> // Для size_t
+#include <driver/timer.h>
 ////#define TX 5 //d6
+#include "GanstaTransmitEsp32.h"
 #define rxPin 13   ////pin reciver
 #define TX 12     //// pin transiver
 #define spiMosi 23
@@ -22,7 +28,6 @@
 #define bit(x, n) (((x) >> (n)) & 1)
 #define g5(x, a, b, c, d, e) \
     (bit(x, a) + bit(x, b) * 2 + bit(x, c) * 4 + bit(x, d) * 8 + bit(x, e) * 16)
-
 bool manufan();
 void convertStringsToBytes(const String &str1, const String &str2);
 void send_meander(int time);
@@ -32,7 +37,7 @@ void starline_vardump();
 void starline_get();
 void startgrabber();
 void init_kepsta();
-void starline_send(byte* starline_code);
+void starline_send(byte* starline_code,int ivert);
 void starline_sendMan(byte* starline_code);
 void posilkeloqmanaOpen();
 void keelog_send(byte* keelog_code);
@@ -70,8 +75,20 @@ String stringWithPrefix(String line, int len, char prefix);
 void reverseBitsInBytes(byte* input, byte* output, int length);
 void saveUniqueCode(const char* packageName, uint8_t* newCode, size_t codeLength);
 void getSavedCodes(const char* packageName, String& jsonResponse, uint8_t codeLength);
+void handleSpecialCode(const String &manufacturer, const String &code, const String &tableName,uint16_t lineNumber);
+void handleSpecialCodeNmf(const String &manufacturer, const String &code, const String &tableName,uint16_t lineNumber);
 void grabshlack_mymod();
-
+void timerEnd();
+void startSendingData(byte* data, size_t dataLength);
+void sendDataTask(void* parameters);
+void startSendTask(
+    uint8_t* protocol, size_t protocolLength, uint32_t shortDelta, uint32_t longDelta,
+    bool isInverted, uint8_t repeats, uint8_t txPin
+);
+void initializeTransmitter();
+bool itxbusy();
+String set_sending(String set);
+String bytesToString(const byte* byteArray, size_t length);
 #include <EEPROM.h>
 #endif
 

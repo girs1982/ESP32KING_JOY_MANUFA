@@ -3,7 +3,6 @@
 #include <Wire.h>
 #include "WiFi.h"
 #include "webs.h"
-#include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include "IotWebConf.h"
 #include "IotWebConfUsing.h"
 #include <Preferences.h>
@@ -13,7 +12,6 @@
 #include "webpage.h"
 #include "javascript_code.h"
 #include <nvs_flash.h>
-
 // #define rxPin 17   ////pin reciver
 // #define TX 16     //// pin transiver
 const char thingName[] = "Kingraberr";
@@ -77,7 +75,6 @@ bool shlack=false;
 ///String sending ="nothing no send";
 String button ="";
 String gasa="zagasa";
-
 // U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
@@ -147,6 +144,132 @@ void GetSavedCodes(const char* packageName) {
     server.send(200, "application/json", jsonResponse);  // Отправляем JSON с кодами
 }
 
+// Функция для отображения всех файлов
+void handleListFiles() {
+    if (!SPIFFS.begin(true)) {
+        server.send(500, "text/plain", "Error SPIFFS.");
+        return;
+    }
+
+    String html = "<html><body>";
+    html += "<h1>Files in SPIFFS</h1>";
+    html += "<ul>";
+
+    File root = SPIFFS.open("/");
+    File file = root.openNextFile();
+
+    while (file) {
+        String fileName = file.name();
+        size_t fileSize = file.size();
+        html += "<li><a href=\"/files/read?file=" + fileName + "\">" + fileName + "</a> (" + String(fileSize) + " bytes)</li>";
+        file = root.openNextFile();
+    }
+
+    html += "</ul>";
+    html += "</body></html>";
+    server.send(200, "text/html", html);
+}
+
+void handleReadFile() {
+    String fileName = server.arg("file");  // Получаем имя файла из параметров URL
+
+    if (fileName.length() == 0) {
+        server.send(400, "text/plain", "Bad Request: file name is missing.");
+        return;
+    }
+
+    File file = SPIFFS.open("/" + fileName, "r");  // Открываем файл на чтение
+    if (!file) {
+        server.send(404, "text/plain", "File not found.");
+        return;
+    }
+
+    String html = "<html><body>";
+    html += "<h1>Contents of file: " + fileName + "</h1>";
+    html += "<pre>";
+
+    // Читаем файл и выводим его содержимое
+    while (file.available()) {
+        html += (char)file.read();
+    }
+
+    html += "</pre>";
+    html += "</body></html>";
+    file.close();  // Закрываем файл
+    server.send(200, "text/html", html);  // Отправляем содержимое файла как HTML
+}
+
+void handleViewFile() {
+    if (!server.hasArg("file")) {
+        server.send(400, "text/plain", "Не указан файл для просмотра.");
+        return;
+    }
+
+    String fileName = server.arg("file");
+    if (!fileName.startsWith("/")) {
+        fileName = "/" + fileName;  // Добавляем '/' в начало, если его нет
+    }
+
+    Serial.printf("Просмотр содержимого файла: %s\n", fileName.c_str());
+
+    if (!SPIFFS.exists(fileName)) {
+        Serial.println("Файл не найден!");
+        server.send(404, "text/plain", "Файл не найден.");
+        return;
+    }
+
+    File file = SPIFFS.open(fileName, "r");
+    if (!file) {
+        Serial.println("Ошибка открытия файла!");
+        server.send(500, "text/plain", "Ошибка открытия файла.");
+        return;
+    }
+
+    String content = file.readString();  // Читаем содержимое файла как строку
+    file.close();
+
+    // Возвращаем содержимое файла с MIME-типом text/plain для .txt файлов
+    String htmlResponse = "<html><body><h2>Содержимое файла: " + fileName + "</h2>";
+    htmlResponse += "<pre>" + content + "</pre>";  // Помещаем содержимое файла в тег <pre> для сохранения форматирования
+    htmlResponse += "</body></html>";
+
+    server.send(200, "text/html", htmlResponse);
+}
+
+void handleClearFile() {
+    // Получаем имя файла из параметра запроса
+    String fileName = server.arg("file");
+
+    // Проверяем, что имя файла передано
+    if (fileName.length() == 0) {
+        server.send(400, "text/plain", "Имя файла не передано.");
+        return;
+    }
+
+    // Инициализация SPIFFS
+    if (!SPIFFS.begin(true)) {
+        server.send(500, "text/plain", "Ошибка инициализации SPIFFS.");
+        return;
+    }
+
+    // Проверяем, существует ли файл
+    if (!SPIFFS.exists(fileName)) {
+        server.send(404, "text/plain", "Файл не найден.");
+        return;
+    }
+
+    // Открываем файл для очистки
+    File file = SPIFFS.open(fileName, FILE_WRITE);
+    if (!file) {
+        server.send(500, "text/plain", "Ошибка открытия файла для записи.");
+        return;
+    }
+
+    // Очищаем содержимое файла (закрытие файла очищает его содержимое)
+    file.close();
+
+    server.send(200, "text/plain", "Файл очищен.");
+}
 
 void brutshlak2(){
 if(send_code_brut<4097){
@@ -294,15 +417,13 @@ void handleESPval(){
   buildXML();
   server.send(200,"text/xml",XML);
 }
-
-
 void setup() {
    //   nvs_flash_erase();      // erase the NVS partition and...
  //   nvs_flash_init();       // initialize the NVS partition.
-Serial.begin(115200);
-  Serial.println(F("KG"));
-  
-sending_m="Wait to send";
+  Serial.begin(115200);
+  Serial.println(F("KG"));  
+  initializeTransmitter();
+  sending_m="Wait to send";
    if (ELECHOUSE_cc1101.getCC1101()){       // Check the CC1101 Spi connection.
   Serial.println("CC1101 Connection OK");
   }else{
@@ -310,16 +431,13 @@ sending_m="Wait to send";
     codan2 += "CC1101_ERROR";
   Serial.println("CC1101 Connection Error");
   }
-
 //CC1101 Settings:                (Settings with "//" are optional!)
-  ELECHOUSE_cc1101.Init();            // must be set to initialize the cc1101!
- 
+  ELECHOUSE_cc1101.Init();            // must be set to initialize the cc1101! 
   ELECHOUSE_cc1101.setPA(12);       // set TxPower. The following settings are possible depending on the frequency band.  (-30  -20  -15  -10  -6    0    5    7    10   11   12)   Default is max!
-   //// ELECHOUSE_cc1101.setSyncMode(4);  
+  //// ELECHOUSE_cc1101.setSyncMode(4);  
         ELECHOUSE_cc1101.setChsp(405.45);  
    ///     ELECHOUSE_cc1101.setGDO0(TX);   
 //ELECHOUSE_cc1101.setRxBW(812.50);  // Set the Receive Bandwidth in kHz. Value from 58.03 to 812.50. Default is 812.50 kHz.
-
 ELECHOUSE_cc1101.setMHZ(freqncy); // Here you can set your basic frequency. The lib calculates the frequency automatically (default = 433.92).The cc1101 can: 300-348 MHZ, 387-464MHZ and 779-928MHZ. Read More info from datasheet.
  ELECHOUSE_cc1101.SetRx(433.92);
     iotWebConf.addSystemParameter(&ssid_io);
@@ -338,14 +456,23 @@ ELECHOUSE_cc1101.setMHZ(freqncy); // Here you can set your basic frequency. The 
   }
    display.display();
   delay(2000); // Pause for 2 seconds
-
   if(sisa){display.clearDisplay();
    display.setCursor(15, 50);
    display.print("CC1101ERROR");
    display.display();
    delay(3000);
-  }
-  
+  }  
+ // Принудительное форматирование SPIFFS
+    if (!SPIFFS.begin(true)) {  // true включает автоматическое форматирование
+        Serial.println("Ошибка монтирования SPIFFS, попытка форматирования...");
+        if (SPIFFS.format()) {
+            Serial.println("SPIFFS успешно отформатирована!");
+        } else {
+            Serial.println("Не удалось отформатировать SPIFFS!");
+        }
+    } else {
+        Serial.println("SPIFFS успешно смонтирована!");
+    }
 WiFi.mode(WIFI_STA);
 WiFi.begin(iotssid, iotssidpass); // Создаём точку доступа
   while (WiFi.status() != WL_CONNECTED&&schel<30) {
@@ -359,23 +486,6 @@ if(schel>=30){WiFi.disconnect();delay(100); WiFi.mode(WIFI_AP_STA);iotWeb=true;}
 //  WiFi.mode(WIFI_STA);
 if(!iotWeb){
   Serial.println(WiFi.localIP());
-  // Now set up two tasks to run independently.
-  // xTaskCreatePinnedToCore(
-  //   TaskBlink
-  //   ,  "TaskBlink"   // A name just for humans
-  //   ,  1024  // This stack size can be checked & adjusted by reading the Stack Highwater
-  //   ,  NULL
-  //   ,  2  // Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
-  //   ,  &gansta 
-  //   ,  1);///core running
-  // xTaskCreatePinnedToCore(
-  //   TaskAnalogReadA3
-  //   ,  "AnalogReadA3"
-  //   ,  4024  // Stack size
-  //   ,  NULL
-  //   ,  2  // Priority
-  //   ,  &gansta2
-  //   ,  0);///core running
 
       xTaskCreatePinnedToCore(
     TaskGrab
@@ -387,7 +497,12 @@ if(!iotWeb){
     ,  0);///core running
 //u8g2.begin();
 init_kepsta(); 
-
+    // Настраиваем маршруты
+    // Настраиваем маршруты
+    server.on("/files", handleListFiles);      // Список файлов
+    server.on("/files/read", handleReadFile);  // Чтение файла
+    server.on("/files/view", HTTP_GET, handleViewFile);
+    server.on("/files/clear", HTTP_GET, handleClearFile);
 server.on("/",handleWebsite);
 server.on("/xml",handleXML);
   server.on("/socket1On", [](){
@@ -419,7 +534,7 @@ posilstarline2();
 });
 server.on("/socket3On", [](){
 ELECHOUSE_cc1101.SetRx(freqncy); 
-server.send(200, "text/html", webSite);
+server.send(200, "text/html", webSite);//scan on
 Serial.println("priem on");
 stoppriem = 1;
 sending_m="priem on";
@@ -444,7 +559,6 @@ server.send(200, "text/html", webSite);
 Serial.println("Manafacturing");
 ELECHOUSE_cc1101.SetTx(freqncy);
 Serial.println("Send Star Mana");
-
 posilstarlinemana();
  // ELECHOUSE_cc1101.Init();            // must be set to initialize the cc1101!
 //ELECHOUSE_cc1101.setRxBW(812.50);  // Set the Receive Bandwidth in kHz. Value from 58.03 to 812.50. Default is 812.50 kHz.
@@ -453,7 +567,6 @@ posilstarlinemana();
 ELECHOUSE_cc1101.SetRx(freqncy); 
 stoppriem = 0;
 sending_m="manafakturing";
-
 });
 server.on("/manaopen", [](){
 server.send(200, "text/html", webSite);
@@ -467,7 +580,6 @@ posilstarlinemanaOpen();
 ELECHOUSE_cc1101.SetRx(freqncy); 
 stoppriem = 0;
 sending_m="manafakturing";
-
 });
 server.on("/brut_g", [](){
 server.send(200, "text/html", webSite);
@@ -498,36 +610,20 @@ server.on("/send_codeoutTable", []() { //////send_specialCodeoutTable
   // Получаем параметры из GET запроса
   String tableName = server.arg("table"); // Параметр table
   String selectedCode = server.arg("code"); // Параметр code
+  String Manafactur = server.arg("manufacturer"); // Параметр code
+  String line = server.arg("line"); // Параметр code
   // Выводим полученные параметры в консоль
   Serial.println("Получены данные:");
   Serial.print("Таблица: ");
   Serial.println(tableName);
-  Serial.print("Код: ");
+  Serial.print("Код: ");  
   Serial.println(selectedCode);
-  // Преобразуем строку с кодом в массив байтов
-  int codeLength = 0;
-  byte* codeArray = new byte[selectedCode.length() / 3];  // Разделяем по 3 символа (например, E6, 37)  
-  // Разделяем строку и конвертируем в байты
-  int i = 0;
-  for (int j = 0; j < selectedCode.length(); j += 3) {
-    String byteString = selectedCode.substring(j, j + 2); // Берем по два символа (например, E6, 37)
-    codeArray[i] = (byte)strtol(byteString.c_str(), NULL, 16); // Преобразуем в байт
-    i++;
-  }
-  // В зависимости от таблицы вызываем нужную функцию для отправки кода
-  if (tableName == "staCodeTable") {
-    Serial.println("Отправка кода через starline_send");
-    ELECHOUSE_cc1101.SetTx(freqncy);
-    starline_sendMan(codeArray);  // Отправляем через starline_send
-  } else if (tableName == "keeCodeTable") {
-    ELECHOUSE_cc1101.SetTx(freqncy);
-    Serial.println("Отправка кода через keelog_send");
-    keelog_sendPAK2(codeArray);  // Отправляем через keelog_send
-  }
-  // Освобождаем память для массива байтов
-  delete[] codeArray;
-  // Отправляем ответ пользователю
-  ELECHOUSE_cc1101.SetRx(freqncy); 
+  Serial.print("Манафактура: ");
+  Serial.println(Manafactur);
+  Serial.print("line: ");
+  Serial.println(line);
+  ELECHOUSE_cc1101.SetTx(freqncy);
+  handleSpecialCodeNmf(Manafactur, selectedCode, tableName,line.toInt());
   server.send(200, "text/html", "Данные успешно получены");
 });
 
@@ -535,38 +631,22 @@ server.on("/send_specialCodeoutTable", []() { //////send_specialCodeoutTable
   // Получаем параметры из GET запроса
   String tableName = server.arg("table"); // Параметр table
   String selectedCode = server.arg("code"); // Параметр code
+  String Manafactur = server.arg("manufacturer"); // Параметр code
+  String line = server.arg("line"); // Параметр code
   // Выводим полученные параметры в консоль
   Serial.println("Получены данные:");
   Serial.print("Таблица: ");
   Serial.println(tableName);
   Serial.print("Код: ");
   Serial.println(selectedCode);
-  // Преобразуем строку с кодом в массив байтов
-  int codeLength = 0;
-  byte* codeArray = new byte[selectedCode.length() / 3];  // Разделяем по 3 символа (например, E6, 37)  
-  // Разделяем строку и конвертируем в байты
-  int i = 0;
-  for (int j = 0; j < selectedCode.length(); j += 3) {
-    String byteString = selectedCode.substring(j, j + 2); // Берем по два символа (например, E6, 37)
-    codeArray[i] = (byte)strtol(byteString.c_str(), NULL, 16); // Преобразуем в байт
-    i++;
-  }
-  // В зависимости от таблицы вызываем нужную функцию для отправки кода
-  if (tableName == "staCodeTable") {
-    Serial.println("Отправка кода через starline_send");
-    ELECHOUSE_cc1101.SetTx(freqncy);
-   // starline_sendMan(codeArray);  // Отправляем через starline_send
-    posilstarlinemanaOpen();
-  } else if (tableName == "keeCodeTable") {
-    ELECHOUSE_cc1101.SetTx(freqncy);
-    Serial.println("Отправка кода через keelog_send");
-   // keelog_sendPAK2(codeArray);  // Отправляем через keelog_send
-    posilkeloqmanaOpen();
-  }
-  // Освобождаем память для массива байтов
-  delete[] codeArray;
+  Serial.print("Манафактура: ");
+  Serial.println(Manafactur);
+  Serial.print("line: ");
+  Serial.println(line);
+  ELECHOUSE_cc1101.SetTx(freqncy);
+  handleSpecialCode(Manafactur, selectedCode, tableName,line.toInt());
   // Отправляем ответ пользователю
-  ELECHOUSE_cc1101.SetRx(freqncy); 
+ /// ELECHOUSE_cc1101.SetRx(freqncy); 
   server.send(200, "text/html", "Данные успешно получены");
 });
 
@@ -620,7 +700,7 @@ String dfo[10];
 for(int i=0;i<10;i++){dfo[i]=getValue(message,';',i);}
 byte sen2[9];
 for(int i=0;i<9;i++){sen2[i]=dfo[i].toInt();}///sen[i]-'0';}
-starline_send(sen2);
+starline_send(sen2,0);
 ///Serial.println((char*)sen);
 ///glushilko_gansta(message.toInt());
 sending_m ="SendStarlineByte:"+message;
@@ -752,21 +832,18 @@ server.send(200, "text/html", webSite);
  server.begin();}
 
  if(iotWeb){
-display.clearDisplay();
- 	
-  display.setTextSize(1.5); // Draw 2X-scale text
-  display.setTextColor(WHITE);
-  display.setCursor(10, 0);
-  display.println(F("Achtung!!!")); 
-    display.setCursor(10, 20);
-  display.println(F("Setup Wifi NET")); 
-  display.display();      // Show initial text
-
-   server.on("/", handleRoot);
-  server.on("/config", []{ iotWebConf.handleConfig(); });
-  server.onNotFound([](){ iotWebConf.handleNotFound(); });
-
-  iotWebConf.skipApStartup();
+display.clearDisplay(); 	
+display.setTextSize(1.5); // Draw 2X-scale text
+display.setTextColor(WHITE);
+display.setCursor(10, 0);
+display.println(F("Achtung!!!")); 
+display.setCursor(10, 20);
+display.println(F("Setup Wifi NET")); 
+display.display();      // Show initial text
+server.on("/", handleRoot);
+server.on("/config", []{ iotWebConf.handleConfig(); });
+server.onNotFound([](){ iotWebConf.handleNotFound(); });
+iotWebConf.skipApStartup();
 ///iotWebConf.setWifiConnectionCallback();
 }
 // server.begin();
@@ -775,7 +852,6 @@ display.clearDisplay();
 void loop()
 {
 if(!iotWeb){if(stoppriem==1&&!shlack){startgrabber();}if(stoppriem==1&&shlack){grabshlack_mymod();}}
-
 if(iotWeb){iotWebConf.doLoop();if(digitalRead(joy_sw_pin)==0){ESP.restart();}}
 }
 
@@ -856,8 +932,9 @@ sending_m=return_sending();
     display.print(sending_m);
     //display.drawFastHLine(0,10,83,BLACK);
     display.display();  
+    falldisponto2();
+  //  falldisponto(); 
     vTaskDelay(1000);
-falldisponto2();
 }
    if(return_disponto()){codan_m=return_codan();
     display.setTextSize(1);
@@ -867,9 +944,9 @@ falldisponto2();
     display.print(codan_m);
     //display.drawFastHLine(0,10,83,BLACK);
     display.display();  
-    vTaskDelay(1000);
+ //    falldisponto2();
     falldisponto();
-
+    vTaskDelay(1000);
    }
     server.handleClient();
  //startgrabber();

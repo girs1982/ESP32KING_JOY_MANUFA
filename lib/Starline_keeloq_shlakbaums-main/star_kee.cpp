@@ -1,6 +1,5 @@
 #include "star_kee.h"
 #include <stdint.h>
-Preferences prefs;
 // Определения макросов для получения битов и функции g5
 int keloq_difftime[2]={400,800};
 bool disponto=false;
@@ -15,6 +14,8 @@ char totable;
 uint32_t hop = 0;
 uint32_t hop_to_sender = 0;
 uint64_t CrazyMonkey=0;
+uint8_t btnm = 0;
+float freq_m=433.92;
 static long StarLineCode1 = 0; // first part
 static long StarLineCode2 = 0; // last part
 static long invertStarLineCode1 = 0; // first part
@@ -68,31 +69,33 @@ byte hugaz[9];
 byte hugazk[9];
 byte hugazi[9];
 byte starline_code[9]={0}; 
+byte code_fara[9]={0};
 byte starline_codePAK2[9]={0};
 byte starline_codePAK1[9]={0};
+byte* siga_code = nullptr;  // Указатель на массив байтов
+uint16_t siga_code_length=0;
 byte webpak2[9];
 byte webpak1[9];
 byte buttonopen=0x42;
 byte buttonclose=0x46;
-
 int starline_state = 0;
 int zoro=1;
 /////////////////////////////////////////////////VVODNIE
 uint32_t decryptedData=0;
-uint8_t btnm = 0;
 uint8_t fixm = 0;
 uint16_t cntm = 0;
+// Глобальная переменная для отслеживания состояния таска
+TaskHandle_t sendTaskHandle = NULL;
 volatile unsigned long prevtime;
 volatile unsigned int lolen, hilen, state;
 volatile int cameCounter = 0;    // count of bits stored
 volatile static long cameCode = 0;       // code itself
 volatile static long lastCode = 0;
-
-
 volatile byte level = 255;
 volatile unsigned long last;
 volatile unsigned long len;
 byte p_level;
+GanstaTransmitEsp32 transmitterGansta(12);
 unsigned long p_len;
 unsigned long p_len_prev;
 struct
@@ -107,14 +110,103 @@ struct DeviceData {
     const char* name;  // Название устройства
     int method;    
 };
+// Параметры для передачи в таск
+struct SendTaskParams {
+    uint8_t* protocol;       // Указатель на массив данных
+    size_t protocolLength;   // Длина массива данных
+    uint32_t shortDelta;     // Короткая длительность (мкс)
+    uint32_t longDelta;      // Длинная длительность (мкс)
+    bool isInverted;         // Инверсия сигнала
+    uint8_t repeats;         // Количество повторов
+    uint8_t txPin;           // Пин для передачи данных
+    int meanderTime;          // Длительность меандра (мкс)
+    int meanderRepeats;       // Количество повторов меандра
+};
 
-//Инициализация массива с данными устройств
-// DeviceData Manafacture[] = {
-//     {0xAABBCCDDEEFFAABB, "Test1"},
-//     {0xAABBCCDDEEFFAABB, "Test2"},
-//     {0x5504045708301203, "Tomohawk"},
-//     {0x6408076407018725, "Tomohawk9010"}
-// };
+// Функция Busy Wait для задержек в микросекундах
+void busyWaitMicroseconds(uint32_t us) {
+    uint32_t start = micros();
+    while ((micros() - start) < us) {
+        // Пустой цикл для ожидания
+    }
+}
+// Функция для выполнения таска
+void sendDataTask(void* parameters) {
+    SendTaskParams* params = (SendTaskParams*)parameters;
+    // Повторяем весь цикл (меандр + пакет) заданное количество раз
+    for (uint8_t repeat = 0; repeat < params->repeats; repeat++) {
+        
+        // Отправка меандра перед отправкой пакета
+        for (int meanderRepeat = 0; meanderRepeat < params->meanderRepeats; meanderRepeat++) {
+            digitalWrite(params->txPin, HIGH);
+           vTaskDelay(params->meanderTime / 1000);  // Высокий уровень меандра
+            digitalWrite(params->txPin, LOW);
+          vTaskDelay(params->meanderTime / 1000);  // Высокий уровень меандра
+        }
+
+        // Отправка основного пакета
+        for (size_t byteIndex = 0; byteIndex < params->protocolLength; byteIndex++) {
+            uint8_t currentByte = params->protocol[byteIndex];
+            // Проходим по каждому биту в текущем байте
+            for (int bitIndex = 7; bitIndex > 0; bitIndex--) {
+                bool bit = bitRead(currentByte, bitIndex);  // Получаем бит
+              //  bit = params->isInverted ? !bit : bit;      // Инвертируем, если нужно
+                // Передача бита
+                if (bit) {
+                     digitalWrite(params->txPin, HIGH);
+                     vTaskDelay(params->shortDelta / portTICK_PERIOD_MS / 1000);   
+                     digitalWrite(params->txPin, LOW);
+                     vTaskDelay(params->shortDelta / portTICK_PERIOD_MS / 1000);   
+                } else {
+                    digitalWrite(params->txPin, HIGH);
+                  vTaskDelay(params->longDelta / portTICK_PERIOD_MS / 1000);
+                    digitalWrite(params->txPin, LOW);
+                    vTaskDelay(params->longDelta / portTICK_PERIOD_MS / 1000);
+                }
+            }
+        }
+
+        // Задержка между повторами
+     //   Serial.println("Cycle completed, waiting before next repeat...");
+  
+      // vTaskDelay(100 / 1000);
+    }
+    // Завершение таска
+    Serial.println("Task completed, deleting...");
+     ELECHOUSE_cc1101.SetRx(freq_m); 
+    // Сброс хэндла таска после его завершения
+    sendTaskHandle = NULL;
+    vTaskDelete(NULL);
+}
+// Функция для создания таска
+void startSendTask(
+    uint8_t* protocol, size_t protocolLength, uint32_t shortDelta, uint32_t longDelta,
+    bool isInverted, uint8_t repeats, uint8_t txPin,int meanderTime,int meanderRepeats
+) {
+      // Проверяем, выполняется ли уже таск
+    if (sendTaskHandle != NULL) {
+        // Если таск еще выполняется, не создаём новый
+        Serial.println("Task is already running. Task will not be created.");
+        return;
+    }
+    // Убедимся, что пин настроен на выход
+    pinMode(txPin, OUTPUT);
+    digitalWrite(txPin, LOW);
+    // Настраиваем параметры для таска
+    SendTaskParams* params = new SendTaskParams{
+        protocol, protocolLength, shortDelta, longDelta, isInverted, repeats, txPin,meanderTime, meanderRepeats
+    };
+
+    // Создаем таск
+    xTaskCreate(
+        sendDataTask,   // Функция таска
+        "SendDataTask", // Имя таска
+        2048,           // Размер стека
+        params,         // Параметры таска
+        configMAX_PRIORITIES - 1,              // Приоритет таска
+        &sendTaskHandle // Указатель на хэндл таска
+    );
+}
 
 // Функция для шифрования и дешифрования с использованием XOR
 uint64_t simpleEncryptDecrypt(uint64_t data, uint64_t key) {
@@ -123,6 +215,7 @@ uint64_t simpleEncryptDecrypt(uint64_t data, uint64_t key) {
 
 // Массив с зашифрованными ключами
 
+// Массив данных устройств без шифрования
 // Массив данных устройств без шифрования
 DeviceData ManafactureNS[] = {
    {0x0000000000000000, "Tomohawk", 1},
@@ -290,73 +383,69 @@ void reverseBitsInBytes(byte* input, byte* output, int length) {
 }
 // Функция для сохранения кода, если он уникален
 void saveUniqueCode(const char* packageName, uint8_t* newCode, size_t codeLength, const String& manufacturerName) {
- // prefs.clear();
-    prefs.begin(packageName, false);  // Начинаем работу с Preferences, открываем указанное пространство
-    // Получаем текущий индекс записи для данного пакета, по умолчанию 0
-    int currentIndex = prefs.getInt("index", 0);
-
-    // Проверяем, есть ли уже этот код в памяти
-    for (int i = 0; i < 30; ++i) {
-        String key = String(i);  // Индексный ключ, уникальный для каждого кода в пакете
-        uint8_t existingCode[codeLength];
-        if (prefs.getBytes(key.c_str(), existingCode, codeLength) == codeLength) {
-            if (memcmp(newCode, existingCode, codeLength) == 0) {
-                Serial.println("Код уже сохранен в текущем пакете.");
-
-                // Если код уже существует, добавляем информацию о производителе в дополнительную таблицу
-                String manufacturerKey = String(i) + "_manufacturer";  // Ключ для таблицы с производителем
-                prefs.putString(manufacturerKey.c_str(), manufacturerName);  // Записываем имя производителя
-
-                // Печатаем информацию о производителе для отслеживания
-                Serial.print("Производитель для этого кода: ");
-                Serial.println(manufacturerName);
-                
-                prefs.end();
-                return;
-            }
-        }
-    }
-
-    // Если индекс достиг 30, перезаписываем первую запись (индекс 0)
-    if (currentIndex >= 30) {
-        Serial.println("Достигнут предел записей. Перезаписываем первую запись.");
-
-        currentIndex = 0;  // Возвращаем индекс к нулю для перезаписи первой записи
-    }
-
-    // Генерируем ключ для текущего индекса
-    String key = String(currentIndex);
-
-    // Очистка старых данных (на случай записи кода меньшей длины)
-    uint8_t emptySlot[codeLength] = {0};
-    prefs.putBytes(key.c_str(), emptySlot, codeLength);
-
-    // Сохраняем новый код в текущий слот
-    size_t bytesWritten = prefs.putBytes(key.c_str(), newCode, codeLength);
-    if (bytesWritten != codeLength) {
-        Serial.println("Ошибка записи кода!");
-        prefs.end();
+    // Инициализация SPIFFS
+    if (!SPIFFS.begin(true)) {
+        Serial.println("Ошибка инициализации SPIFFS");
         return;
     }
 
-    Serial.print("Код сохранен в ");
-    Serial.print(packageName);
-    Serial.print(" под ключом ");
-    Serial.println(key);
+    // Имя файла для хранения кодов
+    String fileName = "/" + String(packageName) + ".txt";
 
-    // Записываем информацию о производителе в дополнительную таблицу
-    String manufacturerKey = String(currentIndex) + "_manufacturer";  // Ключ для таблицы с производителем
-    prefs.putString(manufacturerKey.c_str(), manufacturerName);  // Записываем имя производителя
-    Serial.print("Производитель для этого кода: ");
-    Serial.println(manufacturerName);
+    // Проверяем, существует ли файл, если нет — создаём новый
+    if (!SPIFFS.exists(fileName)) {
+        File newFile = SPIFFS.open(fileName, FILE_WRITE);
+        if (!newFile) {
+            Serial.println("Ошибка создания файла.");
+            return;
+        }
+        newFile.close();
+    }
 
-    // Обновляем индекс для следующей записи
-    currentIndex = (currentIndex + 1) % 30;  // Кольцевой переход после 30
-    prefs.putInt("index", currentIndex);
+    // Открываем файл для чтения
+    File file = SPIFFS.open(fileName, FILE_READ);
+    if (!file) {
+        Serial.println("Ошибка открытия файла для чтения.");
+        return;
+    }
 
-    prefs.end();
+    // Считываем содержимое файла для проверки на уникальность
+    String existingContent = "";
+    while (file.available()) {
+        existingContent += (char)file.read();  // Считываем весь файл как строку
+    }
+    file.close();  // Закрываем файл после чтения
+
+    // Проверяем, есть ли код в файле
+    String newCodeHex = "";
+    for (size_t i = 0; i < codeLength; ++i) {
+        newCodeHex += String(newCode[i], HEX);  // Преобразуем код в строку HEX
+    }
+
+    // Если код уже существует, ничего не делаем
+    if (existingContent.indexOf(newCodeHex) != -1) {
+        Serial.println("Код уже существует в файле.");
+        return;
+    }
+
+    // Открываем файл для добавления нового кода
+    File writeFile = SPIFFS.open(fileName, FILE_APPEND);
+    if (!writeFile) {
+        Serial.println("Ошибка открытия файла для записи.");
+        return;
+    }
+
+    // Записываем новый код в файл (в шестнадцатеричном формате) с именем производителя
+    writeFile.print("CODE: ");
+    for (size_t i = 0; i < codeLength; ++i) {
+        writeFile.print(String(newCode[i], HEX) + " ");  // Записываем код в HEX-формате
+    }
+    writeFile.print(" Manafacture: ");
+    writeFile.println(manufacturerName);  // Записываем имя производителя
+    writeFile.close();  // Закрываем файл после записи
+
+    Serial.println("Код успешно сохранён в файл.");
 }
-
 void init_kepsta(){
 pinMode(TX,OUTPUT);
 pinMode(rxPin,INPUT);
@@ -365,10 +454,7 @@ lastRxTime = micros();
 //kee
 keelastRxValue = digitalRead(rxPin);
 keelastRxTime = micros();
-
 }
-
-
 
 void SPI_SendBit(byte Bit){
   digitalWrite(spiMosi, Bit);
@@ -377,9 +463,6 @@ void SPI_SendBit(byte Bit){
   delayMicroseconds(1);
   digitalWrite(spiSclk, LOW);
 }
-
-
-
 void send_meander(int time)//pra meandr
 {
   digitalWrite(TX, HIGH);
@@ -387,7 +470,6 @@ void send_meander(int time)//pra meandr
   digitalWrite(TX, LOW);
   delayMicroseconds(time);
 }
-
 
 void startgrabber(){
 tempRxValue = digitalRead(rxPin);
@@ -418,23 +500,32 @@ void starline_get(){
      // }
     }
     /////////////////////////////////////////////////////PREAMBULA STARA///////////////////////////////////////////////////////////////////////////
-    else if(starline_state==1){// получаем биты
-      if(difTime2 > 350 && difTime2 < 650 && lastRxValue == 1){// получили 1
-        if(decodeMethod==0){
-          starline_code[lround(starlineZCounter/8)] = (starline_code[lround(starlineZCounter/8)]>>1)|B10000000;
+else if (starline_state == 1) { // получаем биты
+    if (difTime2 > 350 && difTime2 < 650 && lastRxValue == 1) { // получили 1
+        int byteIndex = starlineZCounter / 8;          // Определяем индекс байта
+        int bitPosition = 7 - (starlineZCounter % 8);  // Определяем позицию бита (старший бит = 7)
+        
+        if (decodeMethod == 0) {
+            // Устанавливаем бит в 1
+            starline_code[byteIndex] |= (1 << bitPosition);
+        } else {
+            // Устанавливаем бит в 1 (альтернативная логика)
+            starline_code[byteIndex] |= (1 << (starlineZCounter % 8));
         }
-        else{
-          starline_code[lround(starlineZCounter/8)] = (starline_code[lround(starlineZCounter/8)]<<1)|B00000000;
-        }
+        
         bValidPacket = true;
-      }
-      else if(difTime2 > 150 && difTime2 < 350 && lastRxValue == 1){
-        if(decodeMethod==0){
-          starline_code[lround(starlineZCounter/8)] = (starline_code[lround(starlineZCounter/8)]>>1)|B00000000;
-        }
-        else{
-          starline_code[lround(starlineZCounter/8)] = (starline_code[lround(starlineZCounter/8)]<<1)|B00000001;
-        }
+    } else if (difTime2 > 150 && difTime2 < 350 && lastRxValue == 1) { // получили 0
+        int byteIndex = starlineZCounter / 8;          // Определяем индекс байта
+        int bitPosition = 7 - (starlineZCounter % 8);  // Определяем позицию бита (старший бит = 7)
+        
+        if (decodeMethod == 0) {
+            // Очищаем бит (устанавливаем в 0)
+            starline_code[byteIndex] &= ~(1 << bitPosition);
+        } else {
+            // Очищаем бит (альтернативная логика)
+            starline_code[byteIndex] &= ~(1 << (starlineZCounter % 8));
+        }     
+
         bValidPacket = true;
       }
       else if(lastRxValue == 0){
@@ -442,8 +533,7 @@ void starline_get(){
       else{
         starline_state=1;
         starlineZCounter = 0;
-      }
-      
+      }      
       if(bValidPacket){
         starlineZCounter++;
         if(starlineZCounter==64){           //64ili66
@@ -457,21 +547,17 @@ void starline_get(){
     }
 }
 
-
 // Функция для шифрования с использованием XOR
 uint64_t simpleEncrypt(uint64_t data, uint64_t key) {
     return data ^ key; // Применяем XOR для шифрования
 }
-
-
 void starline_vardump(){
   if(decodeMethod == 0){
     Serial.println(" - starline origin - ");
   }
   else{
     Serial.println(" - starline invert - ");
-  }
- 
+  } 
   byte starline_codeM[9];
   memcpy(starline_codeM, starline_code, sizeof(starline_code));
   Serial.print(starline_code[0], HEX);
@@ -487,38 +573,43 @@ void starline_vardump(){
   Serial.println("-btn");
   Serial.print(starline_code[8], HEX);
   Serial.println("-dop");
-byte* inverted_star = invertArray(starline_code, 7);
+  Serial.println();
+reverseBitsInBytes(starline_code,starline_codeM, 8);
+byte* inverted_star = invertArray(starline_codeM, 8);
     // Выводим инвертированный массив
-    Serial.println("Inverted array:");
-    for (int i = 0; i < 7; i++) {
+    Serial.println("rev array:");
+    for (int i = 0; i < 8; i++) {
+        Serial.print(starline_codeM[i], HEX);
+        Serial.print(" ");
+    }
+    Serial.println();
+    Serial.println("inv array:");
+    for (int i = 0; i < 8; i++) {
         Serial.print(inverted_star[i], HEX);
         Serial.print(" ");
     }
     Serial.println();
 // Перенос значений starline_code[0], [1], [2] и [3] в переменную hop
-hop = (static_cast<uint32_t>(inverted_star[3]) << 24) | 
-      (static_cast<uint32_t>(inverted_star[4]) << 16) | 
-      (static_cast<uint32_t>(inverted_star[5]) << 8) | 
-      (static_cast<uint32_t>(inverted_star[6]));
+// Перенос значений starline_code[0], [1], [2] и [3] в переменную hop
+hop = (static_cast<uint32_t>(starline_codeM[4]) << 24) | 
+      (static_cast<uint32_t>(starline_codeM[5]) << 16) | 
+      (static_cast<uint32_t>(starline_codeM[6]) << 8) | 
+      (static_cast<uint32_t>(starline_codeM[7]));  
 
+ Serial.print("hop to decrypt:");Serial.println(hop,HEX);
 for (int i = 0; i < sizeof(ManafactureNS) / sizeof(ManafactureNS[0]); i++) {
     // Дешифруем данные с помощью текущего ключа
     uint64_t encryptionKey = 0x1234567890ABCDEF; // Задаем ключ шифрования
-    uint64_t decryptedKey =ManafactureNS[i].key;//simpleEncryptDecrypt(Manafacture[i].key, encryptionKey);//  Manafacture[i].key;//Manafacture[i].key; 
-    
+    uint64_t decryptedKey =ManafactureNS[i].key;//simpleEncryptDecrypt(Manafacture[i].key, encryptionKey);//  Manafacture[i].key;//Manafacture[i].key;     
     uint64_t decryptedData = subghz_protocol_keeloq_common_decrypt(hop, decryptedKey);
-
-
     // Извлекаем старшие 8 бит (btnm)
-    uint8_t btnm = (decryptedData >> 24) & 0xFF;
+    btnm = (decryptedData >> 24) & 0xFF;
     // Извлекаем следующие 8 бит (fixm)
     uint8_t fixm = (decryptedData >> 16) & 0xFF;
     // Извлекаем младшие 16 бит (cntm)
-    uint16_t cntm = decryptedData & 0xFFFF;
-
-
+    cntm = decryptedData & 0xFFFF;
     // Проверяем, совпадают ли btnm и fixm с соответствующими значениями из starline_code
-    if (btnm == starline_code[7] && fixm == starline_code[4]) {
+    if (btnm == inverted_star[7] && fixm == inverted_star[4]) {
         Serial.println("Manafactured!!!");
         Serial.print("Count (cntm): 0x");
         Serial.println(cntm, HEX);
@@ -526,27 +617,12 @@ for (int i = 0; i < sizeof(ManafactureNS) / sizeof(ManafactureNS[0]); i++) {
         // Получаем hop_to_sender
         hop_to_sender = subghz_protocol_keeloq_common_encrypt(decryptedData, ManafactureNS[i].key);
         Serial.print("hop_to_sender: 0x");
-        Serial.println(hop_to_sender, HEX);
-
-        // Сохраняем расшифрованные данные в Preferences
-        prefs.begin("decryptedData");
-        prefs.putUInt("decryptedData", decryptedData);
-        prefs.end();
-
-        // Сохраняем starline_codeM в Preferences
-        prefs.begin("sta0M");
-        prefs.putBytes("sta0M", starline_codeM, 9);
-        prefs.end();
-        
+        Serial.println(hop_to_sender, HEX);        
         CrazyMonkey=decryptedKey;
-
-   prefs.begin("staMonkey", false); // Открываем пространство имен
-    // Сохранение значения
-    prefs.putULong64("monky",  CrazyMonkey);    // Получение значения  
-    prefs.end(); // Закрываем пространство имен
-
         manafak = true; // Устанавливаем флаг успешного выполнения
-        saveUniqueCode("sta0",starline_code, sizeof(starline_code),ManafactureNS[i].name);        
+        saveUniqueCode("sta0",starline_code, sizeof(starline_code),ManafactureNS[i].name);  
+        foundProtocol=String(ManafactureNS[i].name);
+             
         break; // Выходим из цикла, если нашли совпадение
     }
 }
@@ -560,9 +636,9 @@ if (!manafak) {
 
 ///proda vibrosaaaaaaaaaaaaaaaa
 if(kk<2){
-prefs.begin("sta0");
-prefs.putBytes("sta0",starline_code,9);
-prefs.end();
+//prefs.begin("sta0");
+//prefs.putBytes("sta0",starline_code,9);
+//prefs.end();
 }
 priem="333";
 ///proda vibrosaaaaaaaaaaaaaaaa
@@ -691,11 +767,11 @@ for (int i = 0; i < sizeof(ManafactureNS) / sizeof(ManafactureNS[0]); i++) {
 
 Serial.print("DECRYPTED:");Serial.println(decryptedData,HEX);
     // Извлекаем старшие 8 бит (btnm)
-    uint8_t btnm = (decryptedData >> 28) & 0xFF;
+     btnm = (decryptedData >> 28) & 0xFF;
     // Извлекаем следующие 8 бит (fixm)
     uint8_t fixm = (decryptedData >> 16) & 0xFF;
     // Извлекаем младшие 16 бит (cntm)
-    uint16_t cntm = decryptedData & 0xFFFF;
+     cntm = decryptedData & 0xFFFF;
 Serial.print("btnCr:");Serial.println(btnm);
 Serial.print("SNCr:");Serial.println(fixm,HEX);
 Serial.print("Name:");Serial.println(ManafactureNS[i].name);
@@ -712,21 +788,21 @@ Serial.print("Name:");Serial.println(ManafactureNS[i].name);
         Serial.println(hop_to_sender, HEX);
 
         // Сохраняем расшифрованные данные в Preferences
-        prefs.begin("decryptedData");
-        prefs.putUInt("decryptedData", decryptedData);
-        prefs.end();
+     //   prefs.begin("decryptedData");
+      //  prefs.putUInt("decryptedData", decryptedData);
+    //    prefs.end();
 
         // Сохраняем starline_codeM в Preferences
-        prefs.begin("kee0M");
-        prefs.putBytes("kee0M", keeloq_codeM, 9);
-        prefs.end();
+    //    prefs.begin("kee0M");
+    //    prefs.putBytes("kee0M", keeloq_codeM, 9);
+     //   prefs.end();
         
         CrazyMonkey=decryptedKey;
 
-   prefs.begin("keeMonkey", false); // Открываем пространство имен
+  // prefs.begin("keeMonkey", false); // Открываем пространство имен
     // Сохранение значения
-    prefs.putULong64("monky",  CrazyMonkey);    // Получение значения  
-    prefs.end(); // Закрываем пространство имен
+  //  prefs.putULong64("monky",  CrazyMonkey);    // Получение значения  
+  //  prefs.end(); // Закрываем пространство имен
 
         manafak = true; // Устанавливаем флаг успешного выполнения
         // Определите длину явно
@@ -820,7 +896,7 @@ void keelog_send(byte* keelog_code){
   //  delayMicroseconds(1000);
 }
 
-void starline_send(byte* starline_code){
+void starline_send(byte* starline_code,int invert){
   
   Serial.println("- sending staray -");
   for(int i = 0; i<9; i++){
@@ -836,7 +912,7 @@ void starline_send(byte* starline_code){
  // digitalWrite(TX, LOW);
   //delayMicroseconds(4000);//посылаем хедер
   for( int i = 0; i<8; i++){
-    if(decodeMethod==1){
+    if(invert==1){
       for(int i2 = 8;i2>=0;i2--){
         if(bitRead(starline_code[i], i2)){
           digitalWrite(TX, HIGH);
@@ -973,9 +1049,9 @@ void SendCame4(long Code) {
 
 
 void posilkeeloq1(){
-prefs.begin("kee0", false);
-prefs.getBytes("kee0",keelog_codePAK1,9);
-prefs.end();
+//prefs.begin("kee0", false);
+//prefs.getBytes("kee0",keelog_codePAK1,9);
+//prefs.end();
 for(int i=0;i<30;i++){keelog_send(keelog_codePAK1);}
 //digitalWrite(TX, HIGH);
 //delay(100);
@@ -1000,12 +1076,12 @@ sending=sending+String( keelog_codePAK1[8],HEX);
 //Serial.println("srabotalo-keeloq");
 }
 void posilkeeloq2(){
-prefs.begin("kee0", false);
+//prefs.begin("kee0", false);
 //EEPROM.begin(3512);
 // keelog_codePAK1[0]=EEPROM.read(0);
 //keelog_codePAK1[0]=prefs.getUChar("kee0", 0);
-prefs.getBytes("kee0",keelog_codePAK2,9);
-prefs.end();
+//prefs.getBytes("kee0",keelog_codePAK2,9);
+//prefs.end();
 sending="code keqloq:"+String( keelog_codePAK2[0],HEX);
 sending=sending+String(keelog_codePAK2[1],HEX);
 sending=sending+String(keelog_codePAK2[2],HEX);
@@ -1030,19 +1106,19 @@ for(int i=0;i<8;i++){ keelog_send(keelog_codePAK2);}
 
 void posilstarlinemana(){ 
 if(decryptedData ==0){
-prefs.begin("decryptedData");
-decryptedData=prefs.getUInt("decryptedData", 0); 
-prefs.end();
+//prefs.begin("decryptedData");
+//decryptedData=prefs.getUInt("decryptedData", 0); 
+//prefs.end();
 }
 if(CrazyMonkey==0){
-   prefs.begin("staMonkey", false); // Открываем пространство имен  
+ //  prefs.begin("staMonkey", false); // Открываем пространство имен  
     // Получение значения
-    CrazyMonkey = prefs.getULong64("monky", 0); // Получаем значение, по умолчанию 0
-    prefs.end(); // Закрываем пространство имен
+   // CrazyMonkey = prefs.getULong64("monky", 0); // Получаем значение, по умолчанию 0
+ //   prefs.end(); // Закрываем пространство имен
 }
- prefs.begin("sta0M", false);
- prefs.getBytes("sta0M",starline_codePAK1,9);
- prefs.end();
+ //prefs.begin("sta0M", false);
+ //prefs.getBytes("sta0M",starline_codePAK1,9);
+// prefs.end();
 for(int i=0;i<7;i++){
 cntm++;
  if(cntm>255){cntm=0;}
@@ -1086,24 +1162,25 @@ void convertStringsToBytes(const String &str1, const String &str2) {
     // Преобразуем каждую строку в число и записываем в байтовые переменные
     buttonopen = (byte) strtol(str1.c_str(), NULL, 16); // Интерпретация строки как hex числа
     buttonclose = (byte) strtol(str2.c_str(), NULL, 16);
+    btnm=buttonopen;
 }
 void posilstarlinemanaOpen(){ 
 if(decryptedData==0){
-prefs.begin("decryptedData");
-decryptedData=prefs.getUInt("decryptedData", 0); 
-prefs.end();
+//prefs.begin("decryptedData");
+//decryptedData=prefs.getUInt("decryptedData", 0); 
+//prefs.end();
 }
 
 if(CrazyMonkey==0){
-     prefs.begin("staMonkey", false); // Открываем пространство имен
+    // prefs.begin("staMonkey", false); // Открываем пространство имен
     // Получение значения
-    uint64_t savedKey = prefs.getULong64("monky", 0); // Получаем значение, по умолчанию 0
-    prefs.end(); // Закрываем пространство имен
+  //  uint64_t savedKey = prefs.getULong64("monky", 0); // Получаем значение, по умолчанию 0
+  //  prefs.end(); // Закрываем пространство имен
 }
 //hop_to_sender== (hop_to_sender & 0xFF00FFFF) | (0x42000000);
- prefs.begin("sta0M", false);
- prefs.getBytes("sta0M",starline_codePAK1,9);
- prefs.end();
+// prefs.begin("sta0M", false);
+ //prefs.getBytes("sta0M",starline_codePAK1,9);
+ //prefs.end();
 for(int i=0;i<7;i++){
  cntm++;
  if(cntm>255){cntm=0;}
@@ -1149,21 +1226,21 @@ digitalWrite(TX, LOW);
 
 void posilkeloqmanaOpen(){ 
 if(decryptedData==0){
-prefs.begin("decryptedData");
-decryptedData=prefs.getUInt("decryptedData", 0); 
-prefs.end();
+//prefs.begin("decryptedData");
+//decryptedData=prefs.getUInt("decryptedData", 0); 
+//prefs.end();
 }
 
 if(CrazyMonkey==0){
-     prefs.begin("keeMonkey", false); // Открываем пространство имен
+  //   prefs.begin("keeMonkey", false); // Открываем пространство имен
     // Получение значения
-    uint64_t savedKey = prefs.getULong64("monky", 0); // Получаем значение, по умолчанию 0
-    prefs.end(); // Закрываем пространство имен
+ //   uint64_t savedKey = prefs.getULong64("monky", 0); // Получаем значение, по умолчанию 0
+ //   prefs.end(); // Закрываем пространство имен
 }
 //hop_to_sender== (hop_to_sender & 0xFF00FFFF) | (0x42000000);
- prefs.begin("kee0M", false);
- prefs.getBytes("kee0M",keelog_codePAK1,9);
- prefs.end();
+ //prefs.begin("kee0M", false);
+ //prefs.getBytes("kee0M",keelog_codePAK1,9);
+ //prefs.end();
 for(int i=0;i<7;i++){
  cntm++;
  if(cntm>255){cntm=0;}
@@ -1209,9 +1286,9 @@ starline_state = 0;
 void posilstarline1(){
 
  
-prefs.begin("sta0", false);
-prefs.getBytes("sta0",starline_codePAK1,9);
-prefs.end();
+//prefs.begin("sta0", false);
+//prefs.getBytes("sta0",starline_codePAK1,9);
+//prefs.end();
    sending="code star_line:"+String(   starline_codePAK1[0],HEX);
 sending=sending+String(   starline_codePAK1[1],HEX);
 sending=sending+String(   starline_codePAK1[2],HEX);
@@ -1222,7 +1299,7 @@ sending=sending+String(  starline_codePAK1[6],HEX);
 sending=sending+String(   starline_codePAK1[7],HEX);
 sending=sending+String(   starline_codePAK1[8],HEX);
 
-starline_send(starline_codePAK1);
+starline_send(starline_codePAK1,0);
  disponto2=true;
   digitalWrite(TX, HIGH);
   delay(100);
@@ -1236,9 +1313,9 @@ starline_send(starline_codePAK1);
 ///  Serial.println("srabotalo");
 }
 void posilstarline2(){ 
-prefs.begin("sta0", false);
-prefs.getBytes("sta0",starline_codePAK2,9);
-prefs.end();
+//prefs.begin("sta0", false);
+//prefs.getBytes("sta0",starline_codePAK2,9);
+//prefs.end();
 sending="code star_line:"+String(   starline_codePAK2[0],HEX);
 sending=sending+String(   starline_codePAK2[1],HEX);
 sending=sending+String(   starline_codePAK2[2],HEX);
@@ -1397,6 +1474,10 @@ String return_sending(){
 sending=sending;
 return sending;
 }
+String set_sending(String set){
+sending=set;
+return sending;
+}
 bool return_disponto(){disponto=disponto;return disponto; }
 void falldisponto(){disponto=false;}
 bool return_disponto2(){disponto2=disponto2;return disponto2; }
@@ -1516,9 +1597,9 @@ void grabshlack_mymod(){
 void sendshlackfrom_mem(){ 
 ///unsigned long zaduo;
 byte potco[24];
-    prefs.begin("sta0", false);
-   prefs.getBytes("shlak",potco,24);  
-    prefs.end(); 
+   // prefs.begin("sta0", false);
+  // prefs.getBytes("shlak",potco,24);  
+  //  prefs.end(); 
     String code;
    code+=potco[0];
   code+="0";
@@ -1570,9 +1651,9 @@ void RfReceive()
    lastCode=camo_codanI.toInt();
  
 
-   prefs.begin("sta0", false);
-   prefs.putBytes("shlak",sambo,24);  
-    prefs.end();   
+  // prefs.begin("sta0", false);
+   //prefs.putBytes("shlak",sambo,24);  
+   // prefs.end();   
     delay(10);
         disponto=true;
         camo_codan="";
@@ -1667,51 +1748,382 @@ String stringWithPrefix(String line, int len, char prefix)
 }
 
 // Функция для получения сохранённых кодов с добавлением имени производителя
-void getSavedCodes(const char* packageName, String& jsonResponse, uint8_t expectedCodeLength) {
-    prefs.begin(packageName, false);  // Открываем пространство памяти с указанным именем пакета
-    Serial.printf("Чтение данных из пакета: %s\n", packageName);
-
-    jsonResponse = "[";  // Начинаем JSON-массив
-
-    for (int i = 0; i < 30; ++i) {
-        String key = String(i);  // Используем ключ на основе индекса
-        uint8_t code[expectedCodeLength];  // Буфер для чтения данных
-        size_t bytesRead = prefs.getBytes(key.c_str(), code, expectedCodeLength);  // Читаем данные
-        
-        Serial.printf("Ключ: %s, Прочитано байт: %d\n", key.c_str(), bytesRead);
-
-        if (bytesRead > 0) {  // Если данные существуют
-            if (jsonResponse.length() > 1) {
-                jsonResponse += ",";  // Добавляем запятую между элементами массива
-            }
-
-            // Начинаем объект для текущего кода
-            jsonResponse += "{";
-
-            // Добавляем массив с кодом
-            jsonResponse += "\"code\":[";
-            for (size_t j = 0; j < bytesRead; ++j) {
-                jsonResponse += "\"" + String(code[j], HEX) + "\"";  // Конвертируем байт в HEX-строку
-                if (j < bytesRead - 1) {
-                    jsonResponse += ",";
-                }
-            }
-            jsonResponse += "]";  // Закрываем массив с кодом
-
-            // Получаем имя производителя
-            String manufacturerKey = String(i) + "_manufacturer";  // Ключ для таблицы с производителем
-            String manufacturerName = prefs.getString(manufacturerKey.c_str(), "Неизвестно");  // Если нет, то по умолчанию "Неизвестно"
-            
-            // Добавляем информацию о производителе
-            jsonResponse += ",\"manufacturer\":\"" + manufacturerName + "\"";
-
-            // Закрываем объект текущего кода
-            jsonResponse += "}"; 
-        }
+void getSavedCodes(const char* fileName, String& jsonResponse, uint8_t expectedCodeLength) {
+    // Убедимся, что SPIFFS смонтирована
+    if (!SPIFFS.begin(true)) {
+        Serial.println("Ошибка монтирования SPIFFS.");
+        jsonResponse = "[]";
+        return;
     }
 
-    jsonResponse += "]";  // Закрываем JSON-массив
-    prefs.end();  // Закрываем пространство памяти
-    Serial.println("Чтение завершено");
-    Serial.println(jsonResponse);  // Печатаем результат
+    // Открываем файл для чтения
+    File file = SPIFFS.open(fileName, "r");
+    if (!file) {
+        Serial.println("Файл не найден, возвращаем пустой массив.");
+        jsonResponse = "[]";
+        return;
+    }
+
+    // Читаем содержимое файла
+    size_t fileSize = file.size();
+    if (fileSize == 0) {
+        Serial.println("Файл пуст, возвращаем пустой массив.");
+        jsonResponse = "[]";
+        file.close();
+        return;
+    }
+
+    // Создаем буфер для хранения данных
+    std::unique_ptr<char[]> fileContent(new char[fileSize + 1]);
+    file.readBytes(fileContent.get(), fileSize);
+    fileContent[fileSize] = '\0';
+    file.close();
+
+    // Парсим содержимое файла как JSON
+    DynamicJsonDocument doc(2048);  // Настройте размер под ваши данные
+    DeserializationError error = deserializeJson(doc, fileContent.get());
+    if (error) {
+        Serial.println("Ошибка разбора JSON: " + String(error.c_str()));
+        jsonResponse = "[]";
+        return;
+    }
+
+    // Формируем JSON-ответ
+    JsonArray codesArray = doc.as<JsonArray>();
+    jsonResponse = "[";
+    for (JsonObject codeObj : codesArray) {
+        if (jsonResponse.length() > 1) {
+            jsonResponse += ",";
+        }
+
+        // Начинаем объект
+        jsonResponse += "{";
+
+        // Добавляем код
+        JsonArray codeArray = codeObj["code"];
+        jsonResponse += "\"code\":[";
+        for (size_t i = 0; i < codeArray.size(); ++i) {
+            jsonResponse += "\"" + String((uint8_t)codeArray[i], HEX) + "\"";
+            if (i < codeArray.size() - 1) {
+                jsonResponse += ",";
+            }
+        }
+        jsonResponse += "]";
+
+        // Добавляем производителя
+        const char* manufacturer = codeObj["manufacturer"] | "Неизвестно";
+        jsonResponse += ",\"manufacturer\":\"" + String(manufacturer) + "\"";
+
+        // Закрываем объект
+        jsonResponse += "}";
+    }
+    jsonResponse += "]";
+    Serial.println("Данные успешно прочитаны из SPIFFS:");
+    Serial.println(jsonResponse);
+}
+// Функция обработки и отправки данных
+void handleSpecialCode(const String &manufacturer, const String &code, const String &tableName,uint16_t lineNumber) {
+    // Поиск ключа для указанного производителя
+    uint64_t manufacturerKey = 0;
+    bool keyFound = false;
+    String filename="/sta0.txt";
+    if(tableName=="keeCodeTable"){filename="/kee0.txt";}
+    for (size_t i = 0; i < sizeof(ManafactureNS) / sizeof(ManafactureNS[0]); i++) {
+        if (manufacturer.equalsIgnoreCase(ManafactureNS[i].name)) {
+            manufacturerKey = ManafactureNS[i].key;           
+            keyFound = true;
+            break;
+        }
+    }
+    if (!keyFound) {
+        Serial.println("Ошибка: Производитель не найден!");
+        return;
+    }
+    // Преобразование строки кода в массив байтов
+    byte dataToSend[9] = {0};  // Массив для отправки
+    size_t dataLen = 0;  // Количество байтов
+    // Разделяем строку по запятой и обрабатываем каждый байт
+    int startIndex = 0;
+    while (startIndex < code.length()) {
+        // Ищем позицию запятой
+        int commaIndex = code.indexOf(',', startIndex);
+        if (commaIndex == -1) {
+            commaIndex = code.length();
+        }
+        // Извлекаем байт из строки и преобразуем его в число
+        String byteStr = code.substring(startIndex, commaIndex);
+        dataToSend[dataLen] = strtoul(byteStr.c_str(), nullptr, 16);
+        dataLen++;
+        // Обновляем индекс для следующего байта
+        startIndex = commaIndex + 1;
+        // Прерываем, если превышен размер массива
+        if (dataLen >= sizeof(dataToSend)) {
+            break;
+        }
+    }
+    Serial.print("Таблица: ");
+    Serial.println(tableName);
+    Serial.print("Код: ");
+    Serial.println(code);
+    Serial.print("Производитель: ");
+    Serial.println(manufacturer);
+//    Serial.print("Производитель key: ");
+//    Serial.println(manufacturerKey,HEX);
+    cntm++;
+    Serial.print("CNT: ");
+    Serial.println(cntm,HEX);  
+    ////////////ok 
+  if(cntm>255){cntm=0;}
+  byte starline_codeM[9];
+  reverseBitsInBytes(dataToSend,starline_codeM, 8);
+  byte* inverted_star = invertArray(starline_codeM, 8);  
+    // Выводим инвертированный массив
+    Serial.println("rev array:");
+    for (int i = 0; i < 8; i++) {
+        Serial.print(starline_codeM[i], HEX);
+        Serial.print(" ");
+    }
+   uint32_t fix = (static_cast<uint32_t>(starline_codeM[0]) << 24) | 
+        (static_cast<uint32_t>(starline_codeM[1]) << 16) | 
+        (static_cast<uint32_t>(starline_codeM[2]) << 8) | 
+        (static_cast<uint32_t>(starline_codeM[3]));   
+    ///fix ok    
+    Serial.print("fix:"); Serial.println(fix,HEX);   
+    Serial.println();
+    Serial.println("inv array:");
+    for (int i = 0; i < 8; i++) {
+        Serial.print(inverted_star[i], HEX);
+        Serial.print(" ");
+    }
+  hop = (static_cast<uint32_t>(starline_codeM[4]) << 24) | 
+        (static_cast<uint32_t>(starline_codeM[5]) << 16) | 
+        (static_cast<uint32_t>(starline_codeM[6]) << 8) | 
+        (static_cast<uint32_t>(starline_codeM[7])); 
+    Serial.print("BTN: ");
+    Serial.println(btnm,HEX);
+    Serial.print("HOP: ");
+    Serial.println(hop,HEX);        
+	  uint64_t decryptedData = subghz_protocol_keeloq_common_decrypt(hop, manufacturerKey);
+    btnm = (decryptedData >> 24) & 0xFF;
+    decryptedData = (decryptedData & 0xFFFF0000) | cntm;
+     //decryptedData = (decryptedData & 0x00FFFFFF) | (0x46000000);
+    decryptedData = (decryptedData & 0x00FFFFFF) | (buttonclose << 24);
+    uint8_t fixm = (decryptedData >> 16) & 0xFF;
+    if (btnm == inverted_star[7] && fixm == inverted_star[4]) {Serial.print("DECRYPT DATA: ");Serial.print(decryptedData,HEX);Serial.print(" DECRYPT OKKK: ");}
+    hop_to_sender=subghz_protocol_keeloq_common_encrypt(decryptedData,manufacturerKey);      
+    Serial.print("hopsender:");
+    Serial.println(hop_to_sender,HEX);
+        inverted_star[0] = (hop_to_sender >> 0) & 0xFF;   // Младший байт (0xF2)
+        inverted_star[1] = (hop_to_sender >> 8) & 0xFF;   // Следующий байт (0x3D)
+        inverted_star[2] = (hop_to_sender >> 16) & 0xFF;  // Следующий байт (0x4E)
+        inverted_star[3] = (hop_to_sender >> 24) & 0xFF;  // Старший байт (0x49)
+        inverted_star[7]=buttonclose; 
+   byte starline_codeM2[9];
+   reverseBitsInBytes(inverted_star,starline_codeM2, 8);
+   byte* inverted_star2 = invertArray(starline_codeM2, 8);  
+   Serial.println("data to send:");
+     for (int i = 0; i < 8; i++) {
+         Serial.print(inverted_star2[i], HEX);
+         Serial.print(" ");
+     }   
+   // if(!transmitterGansta.isBusy()){transmitterGansta.sendPacketStarline(inverted_star2,8,30);} 
+    switch (tableName[0]) {
+        case 'k':  // Если tableName начинается с 'k' (например, keeCodeTable)
+            Serial.println("Протокол: KeeCodeTable");
+            // Логика обработки для keeCodeTable
+            sending=String("sending kee:")+bytesToString(inverted_star2,  sizeof(inverted_star2))+String(manufacturer);
+            if(!transmitterGansta.isBusy()){transmitterGansta.sendPacketKeeloq(inverted_star2,8,30);} 
+            break;
+
+        case 's':  // Если tableName начинается с 's' (например, staCodeTable)
+            Serial.println("Протокол: StaCodeTable");
+            // Логика обработки для staCodeTable
+            sending=String("sending sta:")+bytesToString(inverted_star2,  sizeof(inverted_star2))+String(manufacturer);
+             if(!transmitterGansta.isBusy()){transmitterGansta.sendPacketStarline(inverted_star2,8,30);} 
+            break;
+
+        default:  // Для других значений tableName
+            Serial.println("Протокол: Неизвестный");
+            // Логика по умолчанию
+            for (size_t i = 0; i < dataLen; i++) {
+                dataToSend[i] = 0x00;  // Обнуление данных
+            }
+            break;
+    }
+   
+    memcpy(code_fara,dataToSend, sizeof(dataToSend));     
+    // Управление состоянием TX (пример) 
+    // Вывод информации в консоль для отладки
+    Serial.println("Данные отправлены:");
+    // Открываем файл для чтения
+    File file = SPIFFS.open(filename, FILE_READ);
+    if (!file) {
+        Serial.println("Не удалось открыть файл для чтения!");
+        return;
+    }
+    String fileContent = "";
+    while (file.available()) {
+        fileContent += file.readString();
+    }
+    file.close();
+    // Разбиваем файл на строки
+    int lineCount = 0;
+    String newFileContent = "";
+    bool lineFound = false;
+    // Проходим по строкам и заменяем нужную
+    while (fileContent.length() > 0) {
+        int newlinePos = fileContent.indexOf('\n');
+        if (newlinePos == -1) {
+            newlinePos = fileContent.length();
+        }
+        String currentLine = fileContent.substring(0, newlinePos);
+        fileContent = fileContent.substring(newlinePos + 1);
+        lineCount++;
+        // Если это нужная строка, заменяем её
+        if (lineCount == lineNumber+1) {
+            // Формируем строку в нужном формате
+            String newLine = "CODE: ";
+            for (size_t i = 0; i < sizeof(dataToSend); i++) {
+                newLine += String(dataToSend[i], HEX);
+                if (i < sizeof(dataToSend) - 1) newLine += " ";
+            }
+            newLine += " Manafacture: " + manufacturer;
+
+            newFileContent += newLine + "\n";
+            lineFound = true;
+        } else {
+            // Иначе просто добавляем текущую строку
+            newFileContent += currentLine + "\n";
+        }
+    }
+    // Если нужная строка найдена, перезаписываем файл
+    if (lineFound) {
+        file = SPIFFS.open(filename, FILE_WRITE);
+        if (!file) {
+            Serial.println("Не удалось открыть файл для записи!");
+            return;
+        }
+
+        file.print(newFileContent);
+        file.close();
+
+        Serial.println("Строка успешно обновлена в SPIFFS.");
+    } else {
+        Serial.println("Строка с указанным номером не найдена.");
+    }
+
+
+
+    // Сброс состояния
+ //   starline_state = 0;
+      disponto2 = true;
+
+}
+
+void initializeTransmitter() {
+    transmitterGansta.begin();  // Вызываем метод инициализации
+}
+bool itxbusy(){
+  return transmitterGansta.isBusy();
+}
+
+
+void handleSpecialCodeNmf(const String &manufacturer, const String &code, const String &tableName,uint16_t lineNumber) {
+    // Поиск ключа для указанного производителя
+    uint64_t manufacturerKey = 0;
+    bool keyFound = false;
+    String filename="/sta0.txt";
+    if(tableName=="keeCodeTable"){filename="/kee0.txt";}
+    for (size_t i = 0; i < sizeof(ManafactureNS) / sizeof(ManafactureNS[0]); i++) {
+        if (manufacturer.equalsIgnoreCase(ManafactureNS[i].name)) {
+            manufacturerKey = ManafactureNS[i].key;           
+            keyFound = true;
+            break;
+        }
+    }
+    if (!keyFound) {
+        Serial.println("Ошибка: Производитель не найден!");
+      //  return;
+    }
+    // Преобразование строки кода в массив байтов
+    byte dataToSend[9] = {0};  // Массив для отправки
+    size_t dataLen = 0;  // Количество байтов
+    // Разделяем строку по запятой и обрабатываем каждый байт
+    int startIndex = 0;
+    while (startIndex < code.length()) {
+        // Ищем позицию запятой
+        int commaIndex = code.indexOf(',', startIndex);
+        if (commaIndex == -1) {
+            commaIndex = code.length();
+        }
+        // Извлекаем байт из строки и преобразуем его в число
+        String byteStr = code.substring(startIndex, commaIndex);
+        dataToSend[dataLen] = strtoul(byteStr.c_str(), nullptr, 16);
+        dataLen++;
+        // Обновляем индекс для следующего байта
+        startIndex = commaIndex + 1;
+        // Прерываем, если превышен размер массива
+        if (dataLen >= sizeof(dataToSend)) {
+            break;
+        }
+    }
+    Serial.print("Таблица: ");
+    Serial.println(tableName);
+    Serial.print("Код: ");
+    Serial.println(code);
+    Serial.print("Производитель: ");
+    Serial.println(manufacturer);    
+//    Serial.print("Производитель key: ");
+//    Serial.println(manufacturerKey,HEX);
+    cntm++;
+    Serial.print("CNT: ");
+    Serial.println(cntm,HEX);  
+    ////////////ok 
+  if(cntm>255){cntm=0;}
+ 
+   // if(!transmitterGansta.isBusy()){transmitterGansta.sendPacketStarline(inverted_star2,8,30);} 
+    switch (tableName[0]) {
+        case 'k':  // Если tableName начинается с 'k' (например, keeCodeTable)
+            Serial.println("Протокол: KeeCodeTable");
+            // Логика обработки для keeCodeTable
+            sending=String("sending kee:")+String(code);
+            if(!transmitterGansta.isBusy()){transmitterGansta.sendPacketKeeloq(dataToSend,8,30);} 
+            break;
+
+        case 's':  // Если tableName начинается с 's' (например, staCodeTable)
+            Serial.println("Протокол: StaCodeTable");
+            // Логика обработки для staCodeTable
+            sending=String("sending sta:")+String(code);
+             if(!transmitterGansta.isBusy()){transmitterGansta.sendPacketStarline(dataToSend,8,30);} 
+            break;
+
+        default:  // Для других значений tableName
+            Serial.println("Протокол: Неизвестный");
+            // Логика по умолчанию
+            for (size_t i = 0; i < dataLen; i++) {
+                dataToSend[i] = 0x00;  // Обнуление данных
+            }
+            break;
+    }
+   
+    
+    Serial.println("Данные отправлены:");
+ 
+
+    // Сброс состояния
+ //   starline_state = 0;
+    disponto2 = true; //запуск таска вывода на дисплей
+}
+String bytesToString(const byte* byteArray, size_t length) {
+    String result = ""; // Инициализация пустой строки
+
+    for (size_t i = 0; i < length; ++i) {
+        if (byteArray[i] < 0x10) {
+            result += "0"; // Добавляем ведущий ноль для байтов меньше 0x10
+        }
+        result += String(byteArray[i], HEX); // Преобразуем байт в HEX
+    }
+
+    result.toUpperCase(); // Приводим к верхнему регистру (если нужно)
+    return result;
 }
